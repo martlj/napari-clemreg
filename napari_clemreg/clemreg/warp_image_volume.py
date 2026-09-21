@@ -5,7 +5,7 @@ import math
 from napari.layers import Points, Image
 from napari.types import PointsData, ImageData
 from scipy import ndimage
-from napari.layers.utils._link_layers import get_linked_layers
+from ._napari_compat import get_linked_layers
 from skimage import exposure
 import numpy as np
 

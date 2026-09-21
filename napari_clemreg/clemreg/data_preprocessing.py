@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # coding: utf-8
 from napari.layers import Image
-from napari.layers.utils._link_layers import get_linked_layers
+from ._napari_compat import get_linked_layers
 from scipy import ndimage
 import numpy as np
 import time

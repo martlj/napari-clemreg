@@ -15,7 +15,6 @@ from ..clemreg.point_cloud_sampling import point_cloud_sampling
 from ..clemreg.warp_image_volume import warp_image_volume
 from ..clemreg.data_preprocessing import make_isotropic, _make_isotropic
 from napari.qt.threading import thread_worker
-from napari.layers.utils._link_layers import link_layers
 
 """
 Moving segmentation

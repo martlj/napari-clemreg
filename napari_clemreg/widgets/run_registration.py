@@ -343,7 +343,7 @@ def make_run_registration(
     from ..clemreg.warp_image_volume import warp_image_volume
     from ..clemreg.data_preprocessing import make_isotropic, _make_isotropic
     from napari.qt.threading import thread_worker
-    from napari.layers.utils._link_layers import link_layers
+    from ..clemreg._napari_compat import link_layers
 
     def _add_data(return_value):
         if isinstance(return_value, str):
