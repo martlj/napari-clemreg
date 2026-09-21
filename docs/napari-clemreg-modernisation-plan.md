@@ -199,6 +199,8 @@ The MitoNet EM segmentation comes from `empanada-dl`, and it is the single harde
 - **Development has moved off the published core package.** The core repo `volume-em/empanada` is active (169 commits, README warns "breaking changes should be expected") but is **not being released to `empanada-dl` on PyPI**. Meanwhile `empanada-napari` keeps releasing (latest 1.2.4) with *looser* deps (`numpy>=1.22`, py3.10–3.13) — but it still uses the **npe1** `napari-plugin-engine` and caps **`napari<=0.6.6`**.
 - The napari≤0.6.6 cap across the EM-napari ecosystem **reinforces targeting exactly napari 0.6.6** (§2) rather than chasing anything newer — going above 0.6.6 would put clemreg ahead of empanada-napari and likely others.
 
+> **Update, checked 2026-09-21 (see [issue #5](https://github.com/martlj/napari-clemreg/issues/5)):** `empanada-dl` on PyPI is unchanged (still `0.1.7`, `numpy==1.22`). But **`volume-em/empanada` is not actually active** — its last code push was 2023-02-25; the README's "development is active" line is stale boilerplate, not a live status. The real movement happened in `volume-em/empanada-napari` instead, which *is* actively maintained (pushed within the last month) and has **vendored its own copy of the core inference code** directly in an `empanada/` subdirectory of that repo, with loose pins (`numpy>=1.22`, Python `>=3.10`) — no dependency on the stale `empanada-dl` package at all. This is effectively the "models out of the GUI, numpy-2-capable" core the section below hopes for; it already exists, just isn't published standalone. Licensing is an open discrepancy: `volume-em/empanada`'s `LICENSE` file is GPL-2.0, `empanada-dl`'s PyPI metadata self-declares BSD-3-Clause, and `empanada-napari`'s repo-root `LICENSE` (covering its vendored `empanada/` copy) is BSD-3-Clause — needs maintainer confirmation before relying on any of it. This supersedes "install from empanada git main" below (dead end, same vintage as the stale PyPI release) and reframes the outreach ask (§4a "Interim options", option 4).
+
 ### Why the "models out of the GUI" work matters to us
 
 An empanada effort that splits the models/inference core cleanly out of the GUI and **publishes a maintained, GUI-free, numpy-2 / py3.11-capable inference package is exactly what clemreg needs** — it would dissolve the numpy blocker above and give the `clemreg` core (§6) a clean dependency for EM segmentation. So this is on clemreg's critical path, not a nice-to-have.
@@ -211,12 +213,14 @@ An empanada effort that splits the models/inference core cleanly out of the GUI 
 
 ### Interim options if empanada-dl doesn't move in time
 
-1. Install from the **empanada git main** (`pip install git+https://github.com/volume-em/empanada.git`) if its pins are looser than 0.1.7 — verify its numpy constraint first.
-2. **Vendor just the MitoNet inference path** into the clemreg core (the plugin only needs inference, not training) so clemreg controls the numpy/torch pins. Heavier, and check the licence (PyPI metadata says BSD-3-Clause; the GitHub repo page shows GPL-2.0 — **confirm which applies before vendoring**).
-3. Install `empanada-dl` with `--no-deps` and satisfy its runtime imports with clemreg-managed modern pins — quickest, but fragile and unsupported.
-4. Coordinate directly with the empanada maintainers (volume-em) — a one-line numpy pin relaxation + a fresh `empanada-dl` release may be all that's needed, and is worth asking for given the split is already their direction.
+Revised 2026-09-21 per the update above — option 1 (git main) is now known to be a dead end, and option 2 is retargeted at the actually-maintained source:
 
-Recommendation: raise the numpy pin with the empanada maintainers early (option 4) while keeping option 1/2 as fallback; treat "modern empanada-dl available" as an explicit dependency of the §1 milestone.
+1. ~~Install from the empanada git main~~ — **dead end**: `volume-em/empanada` main hasn't moved since 2023-02-25, same vintage as the stale 0.1.7 PyPI release.
+2. **Vendor (or depend on) the `empanada/` package bundled inside `volume-em/empanada-napari`** rather than the dormant `volume-em/empanada` core repo — this is the actively-maintained, loose-numpy-pin copy. **Confirm licensing with the maintainers first**: their repo-root `LICENSE` is BSD-3-Clause, but the original core repo's `LICENSE` is GPL-2.0 and `empanada-dl`'s PyPI metadata claims BSD-3-Clause — three different signals, needs an explicit answer, not an assumption.
+3. Install `empanada-dl` with `--no-deps` and satisfy its runtime imports with clemreg-managed modern pins — quickest, but fragile and unsupported.
+4. Coordinate directly with the empanada maintainers (volume-em) — revised ask: they've already modernised and vendored the core inside `empanada-napari`; ask them to either publish it standalone as a fresh `empanada-dl` release, or confirm its license so clemreg can depend on/vendor it directly. This is a smaller ask than reviving a dead package.
+
+Recommendation: raise the revised ask with the empanada maintainers early (option 4) while keeping option 2 as fallback once licensing is confirmed; treat "modern empanada core available under a confirmed license" as an explicit dependency of the §1 milestone.
 
 ## 5. Suggested sequencing
 
