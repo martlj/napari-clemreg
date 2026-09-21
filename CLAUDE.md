@@ -32,11 +32,15 @@ pytest -v --color=yes --cov=napari_clemreg --cov-report=xml
 Run a single test file or test:
 
 ```
-pytest napari_clemreg/_tests/test_dock_widget.py
-pytest napari_clemreg/_tests/test_dock_widget.py::test_name
+pytest napari_clemreg/_tests/test_warp_image_volume.py
+pytest napari_clemreg/_tests/test_warp_image_volume.py::test_name
 ```
 
-Note: `napari_clemreg/_tests/test_dock_widget.py` is currently a commented-out placeholder (from the cookiecutter template) — there is no active test coverage yet.
+Note: `napari_clemreg/_tests/test_dock_widget.py` is currently a commented-out placeholder (from the cookiecutter template) — there is no active widget-level test coverage yet, but unit tests for the pure math in `clemreg/` exist under `napari_clemreg/_tests/` (see §0 of the modernisation plan below).
+
+**macOS: torch + napari can segfault on import** (two OpenMP runtimes loaded in one process — torch's bundled `libiomp5` vs. the conda-forge `libomp` napari's stack pulls in). `napari_clemreg/_tests/conftest.py` sets `KMP_DUPLICATE_LIB_OK=TRUE` and `OMP_NUM_THREADS=1` before those imports, so pytest runs are unaffected; if you import `napari_clemreg` (or `torch` then `napari`) directly in a script or REPL, set those env vars first. No-op on Linux CI.
+
+There are pre-existing local conda envs for this repo: `clemreg_env` (python 3.9, matches current `setup.cfg` pins exactly — the one to use for the §0 characterisation baseline, and has `napari-clemreg` installed editable from this checkout via `pip install -e . --no-deps`) and `napari-clemreg-311` (a prior Python 3.11 upgrade attempt, currently broken — numpy/scikit-image ABI mismatch). `napari-clemreg` (no suffix) is also broken (numpy 2.x vs. a scipy build expecting <1.27). Prefer `clemreg_env`.
 
 ## Architecture
 
