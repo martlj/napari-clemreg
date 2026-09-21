@@ -51,18 +51,30 @@ Finally, to run napari run the following.
 napari
 ```
 
-[//]: # (When installing `napari-clemreg` on a Windows machine, the following error might appear:)
-
-[//]: # (```)
-
-[//]: # (error Microsoft Visual C++ 14.0 is required)
-
-[//]: # (```)
-
-[//]: # (Ensure that [Visual Studios C++ 14.00]&#40;https://visualstudio.microsoft.com/thank-you-downloading-visual-studio/?sku=BuildTools&rel=16&#41; is installed)
+When installing `napari-clemreg` on a Windows machine, the following error might appear:
+```
+ImportError: DLL load failed while importing pybind: A dynamic link library (DLL) initialization routine failed.
+```
+This is `open3d` (a dependency), which needs both the [Microsoft Visual C++ Redistributable](https://aka.ms/vs/17/release/vc_redist.x64.exe) and real GPU-backed OpenGL 4.1+ support — it won't import in a virtual machine or remote desktop without GPU passthrough (confirmed against [isl-org/Open3D#4468](https://github.com/isl-org/Open3D/issues/4468) and [#5328](https://github.com/isl-org/Open3D/issues/5328); this is also why this project's CI only tests Linux and macOS, not Windows).
 
 [![Watch the video](docs%2Fimages%2Fclemreg_installation_thumbnail.png)](https://youtu.be/ZN68q9OU59s)
 
+### Development Installation (this fork)
+
+This fork (`martlj/napari-clemreg`) is being actively modernised — see [docs/napari-clemreg-modernisation-plan.md](docs/napari-clemreg-modernisation-plan.md) for the full plan. Unlike the released PyPI package above, it now requires **Python 3.11+**.
+
+`empanada-dl` (needed for the bundled EM Segmentation widget) currently blocks a normal install on Python 3.11 — it hard-pins `numpy==1.22`, which has no Python 3.11 wheels (tracked in [issue #5](https://github.com/martlj/napari-clemreg/issues/5)). Until that's resolved, install everything else and skip it:
+
+```
+conda create -n clemreg_dev python=3.11
+conda activate clemreg_dev
+git clone https://github.com/martlj/napari-clemreg.git
+cd napari-clemreg
+pip install typing_extensions setuptools packaging pint numpy scipy "scikit-image>=0.22" "magicgui>=0.8.3" "napari>=0.6" open3d probreg transforms3d tqdm h5py matplotlib imageio tifffile torch connected-components-3d pyqt5
+pip install -e . --no-deps
+```
+
+This gives you a working install of everything **except** the bundled EM Segmentation (MitoNet/empanada) widget. For EM segmentation, use [AI-on-Demand instead](#using-ai-on-demand-aiod-for-em-segmentation) — see Usage below.
 
 ### Docker Container
 If you would like to run `napari-clemreg` in a docker container instead of installing it as above, please follow the instructions in our [Docker guide](docker_guide.md)
