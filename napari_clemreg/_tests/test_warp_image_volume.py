@@ -1,5 +1,4 @@
 import numpy as np
-import pytest
 
 from napari_clemreg.clemreg.warp_image_volume import (
     _U,
@@ -51,26 +50,17 @@ def test_calculate_f_reduces_to_affine_when_weights_are_zero(rng):
     np.testing.assert_allclose(result, expected)
 
 
-@pytest.mark.xfail(
-    reason=(
-        "Known bug (see issue: 'TPS warp affine solve is corrupted by "
-        "incomplete zero-padding'): _make_warp builds its right-hand side "
-        "with `V = np.resize(to_points, (n + 4, 3)); V[-3:, :] = 0`. "
-        "np.resize cyclically tiles to_points rather than zero-padding, and "
-        "only 3 of the 4 'extra' rows are zeroed afterwards -- row -4 "
-        "(needed to satisfy the TPS affine-orthogonality constraint) keeps "
-        "a wrapped-around value instead of 0. That corrupts the affine part "
-        "of every solve, not just pathological inputs. Confirmed the fix is "
-        "one line in warp_image_volume.py: `V[-3:, :] = 0` -> `V[-4:, :] = 0`."
-    ),
-    strict=True,
-)
 def test_make_warp_identity_transform_is_unchanged(rng):
     """Identity transform => image unchanged (within interpolation tolerance).
 
     When from_points == to_points, _make_warp should be the identity
     everywhere -- see the modernisation plan's testing-foundation
     invariants, docs/napari-clemreg-modernisation-plan.md §0.1.1.
+
+    Regression test for a bug (#9) where the TPS right-hand side zeroed
+    only 3 of the 4 rows needed to satisfy the affine-orthogonality
+    constraint (`V[-3:, :] = 0` instead of `V[-4:, :] = 0`), corrupting
+    the affine part of every solve.
     """
     points = rng.uniform(0, 10, size=(6, 3))
     query = rng.uniform(0, 10, size=(5,))
@@ -79,5 +69,31 @@ def test_make_warp_identity_transform_is_unchanged(rng):
     x_warp, y_warp, z_warp = _make_warp(points, points, x_vals, y_vals, z_vals)
     actual = np.stack([x_warp, y_warp, z_warp], axis=1)
     expected = np.stack([x_vals, y_vals, z_vals], axis=1)
+
+    np.testing.assert_allclose(actual, expected, atol=1e-6)
+
+
+def test_make_warp_recovers_a_known_affine_transform(rng):
+    """When from_points/to_points are related by an affine map, the TPS
+    solution should have zero non-affine (bending) component and recover
+    that same affine map exactly at arbitrary query points, not just at
+    the control points themselves -- a stronger check than the identity
+    invariant above, and another regression test for #9.
+    """
+    from_points = rng.uniform(0, 10, size=(6, 3))
+    matrix = np.array([
+        [1.2, 0.1, -0.05],
+        [0.0, 0.9, 0.2],
+        [0.1, 0.0, 1.1],
+    ])
+    offset = np.array([2.0, -1.0, 0.5])
+    to_points = from_points @ matrix.T + offset
+
+    query = rng.uniform(0, 10, size=(5,))
+    x_vals, y_vals, z_vals = query, query[::-1].copy(), query * 0.5
+
+    x_warp, y_warp, z_warp = _make_warp(from_points, to_points, x_vals, y_vals, z_vals)
+    actual = np.stack([x_warp, y_warp, z_warp], axis=1)
+    expected = np.stack([x_vals, y_vals, z_vals], axis=1) @ matrix.T + offset
 
     np.testing.assert_allclose(actual, expected, atol=1e-6)

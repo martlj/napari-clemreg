@@ -226,7 +226,7 @@ def _make_warp(from_points, to_points, x_vals, y_vals, z_vals):
     err = np.seterr(divide='ignore')
     L = _make_L_matrix(from_points)
     V = np.resize(to_points, (len(to_points) + 4, 3))
-    V[-3:, :] = 0
+    V[-4:, :] = 0
     # TODO: benchmark speed of numpy and scipy implementations of pinv
     # TODO: if piecewise non-linear transform only compute pseudoinverse once!
     L_pseudo_inverse = np.linalg.pinv(L)  # L increases with number of control points!
