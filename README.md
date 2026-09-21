@@ -8,6 +8,7 @@ napari-clemreg
 ### An automated point cloud based registration algorithm for correlative light and volume electron microscopy
 <p align="center">
     <a href="https://www.nature.com/articles/s41592-025-02794-0"><img alt="Paper" src="https://img.shields.io/badge/paper-Nat._Methods-orange"></a>
+    <a href="https://github.com/martlj/napari-clemreg/actions/workflows/test.yml"><img alt="Tests" src="https://github.com/martlj/napari-clemreg/actions/workflows/test.yml/badge.svg"></a>
     <a href="https://pypi.org/project/napari-clemreg"><img alt="PyPI" src="https://img.shields.io/pypi/v/napari-clemreg.svg?color=green"></a><a href="https://pypistats.org/packages/napari-clemreg"><img alt="PyPI - Downloads" src="https://img.shields.io/pypi/dm/napari-clemreg"></a>
     <a href="https://github.com/krentzd/napari-clemreg/"><img alt="github" src="https://img.shields.io/github/stars/krentzd/napari-clemreg?style=social"></a>
     <a href="https://github.com/krentzd/napari-clemreg/"><img alt="github" src="https://img.shields.io/github/forks/krentzd/napari-clemreg?style=social"></a>
