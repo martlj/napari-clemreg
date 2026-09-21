@@ -45,6 +45,21 @@ def test_widget_factory_builds(factory, qapp):
     assert widget is not None
 
 
+def test_pixelsize_quantity_edit_fields_build(qapp):
+    """The pint-quantity pixel-size fields are the item the modernisation
+    plan (§2.2) flags as most likely to break on a magicgui upgrade.
+    """
+    widget = make_run_registration()
+    for name in [
+        'moving_image_pixelsize_xy',
+        'moving_image_pixelsize_z',
+        'fixed_image_pixelsize_xy',
+        'fixed_image_pixelsize_z',
+    ]:
+        field = getattr(widget, name)
+        assert field.value.units == 'nanometer'
+
+
 def test_npe2_manifest_loads():
     from npe2 import PluginManifest
 
