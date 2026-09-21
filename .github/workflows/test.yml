@@ -29,15 +29,17 @@ jobs:
           python-version: ${{ matrix.python-version }}
 
       # Graphical libraries needed by Qt/vispy for a headless napari import,
-      # mirroring the system packages already used in clemreg.dockerfile.
+      # mirroring the system packages already used in clemreg.dockerfile
+      # (written for Ubuntu 22.04 -- libegl1-mesa/libgl1-mesa-glx were
+      # renamed to libegl1/libgl1 by the time ubuntu-latest moved to 24.04).
       - name: Install Qt/X11 system libraries (Linux)
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
           sudo apt-get install -qqy \
-            libegl1-mesa \
+            libegl1 \
             libopengl0 \
-            libgl1-mesa-glx \
+            libgl1 \
             libglib2.0-0 \
             libfontconfig1 \
             libxrender1 \
@@ -53,6 +55,16 @@ jobs:
             libxcb-xinput0 \
             libxcb-xfixes0 \
             libxcb-shape0
+
+      # open3d's Windows wheel needs the MSVC++ runtime, which the
+      # windows-latest runner doesn't ship by default (this is the same
+      # "Microsoft Visual C++ 14.0 is required" issue already noted, but
+      # never wired up, in README.md).
+      - name: Install MSVC++ runtime (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          curl -L -o vc_redist.x64.exe https://aka.ms/vs/17/release/vc_redist.x64.exe
+          .\vc_redist.x64.exe /install /quiet /norestart
 
       - name: Install tox
         run: python -m pip install --upgrade pip tox tox-gh-actions
