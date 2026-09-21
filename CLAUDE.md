@@ -40,7 +40,12 @@ Note: `napari_clemreg/_tests/test_dock_widget.py` is currently a commented-out p
 
 **macOS: torch + napari can segfault on import** (two OpenMP runtimes loaded in one process — torch's bundled `libiomp5` vs. the conda-forge `libomp` napari's stack pulls in). `napari_clemreg/_tests/conftest.py` sets `KMP_DUPLICATE_LIB_OK=TRUE` and `OMP_NUM_THREADS=1` before those imports, so pytest runs are unaffected; if you import `napari_clemreg` (or `torch` then `napari`) directly in a script or REPL, set those env vars first. No-op on Linux CI.
 
-There are pre-existing local conda envs for this repo: `clemreg_env` (python 3.9, matches current `setup.cfg` pins exactly — the one to use for the §0 characterisation baseline, and has `napari-clemreg` installed editable from this checkout via `pip install -e . --no-deps`) and `napari-clemreg-311` (a prior Python 3.11 upgrade attempt, currently broken — numpy/scikit-image ABI mismatch). `napari-clemreg` (no suffix) is also broken (numpy 2.x vs. a scipy build expecting <1.27). Prefer `clemreg_env`.
+There are pre-existing local conda envs for this repo:
+- `clemreg_env` (python 3.9) — matches the **pre-#3** `setup.cfg` pins the repo actually ships and installs cleanly today (has `napari-clemreg` installed editable from this checkout via `pip install -e . --no-deps`). Use this for day-to-day work and for the §0 characterisation baseline, since `setup.cfg`'s `python_requires` now says `>=3.11` but a real `pip install` still can't resolve on 3.11 until #5 (`empanada-dl`) is unblocked.
+- `clemreg-py311-verify` (python 3.11) — built to empirically verify the #3 (Python 3.11) dependency bump. Has every `setup.cfg` dependency installed at its latest available version **except `empanada-dl`** (deliberately excluded, since it's the #5 blocker) — `napari-clemreg` is installed editable via `pip install -e . --no-deps` here too. The full test suite passes here (30 passed, 1 xfailed) as of the #3 work. Reuse this env rather than rebuilding it for further Python 3.11 verification; extend it if you need to test a newer pin.
+- `napari-clemreg-311` and `napari-clemreg` (no suffix) — both broken (numpy/scikit-image ABI mismatches from earlier, less careful upgrade attempts). Not worth fixing; superseded by `clemreg-py311-verify`.
+
+**macOS: open3d's wheel needs `libusb`** (`brew install libusb`) or it fails to import with a `dlopen`/`Library not loaded` error. Not a napari-clemreg issue — open3d's compiled binary links against it unconditionally.
 
 ## Architecture
 
@@ -66,4 +71,4 @@ The full plan (testing foundation, Python 3.11 + napari 0.6.6 upgrade, MoBIE exp
 
 ## Packaging
 
-The root package (`napari-clemreg`, the napari plugin) is defined via `setup.cfg`/`setup.py` (no `pyproject.toml`), versioned with `setuptools_scm`. Heavy/pinned dependencies include `napari`, `torch`, `open3d`, `empanada-dl`, and `probreg` — installs can be slow and are sensitive to version pins in `setup.cfg`.
+The root package (`napari-clemreg`, the napari plugin) is defined via `setup.cfg`/`setup.py` (no `pyproject.toml`). `python_requires = >=3.11` as of the #3 modernisation work, with most pins loosened to `>=` per the plan's §1.2 table. **`empanada-dl` stays hard-pinned at `==0.1.7`** (its own `numpy==1.22` pin blocks Python 3.11 installs entirely — see [issue #5](https://github.com/martlj/napari-clemreg/issues/5)), so `pip install napari-clemreg` will not actually resolve on Python 3.11 until that's unblocked, even though the rest of the stack (verified empirically in `clemreg-py311-verify`, see above) already works. Heavy dependencies (`napari`, `torch`, `open3d`, `probreg`) make installs slow.
