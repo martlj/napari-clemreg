@@ -58,6 +58,8 @@ The full pipeline (EM segmentation → FM segmentation → point-cloud sampling 
 
 `packages/clemreg/` is a placeholder for extracting the `clemreg/` core (segmentation, point-cloud sampling, registration, warping, plus a planned MoBIE export) into a standalone, napari-free PyPI package (`clemreg`, requires Python ≥3.11, built with hatchling — separate from the root package's setuptools/Python ≥3.7 config). It currently only reserves the PyPI name (version `0.0.0`, no functionality). The napari plugin in this repo will eventually depend on that core package rather than containing the algorithms directly. This is being tracked on the `feature/split-clemreg-core` branch.
 
+The full plan (testing foundation, Python 3.11 + napari 0.6.6 upgrade, MoBIE export, the core/widget split, and the repo/PyPI/release strategy) is in [docs/napari-clemreg-modernisation-plan.md](docs/napari-clemreg-modernisation-plan.md) — read it before starting work related to any of those areas.
+
 ## Packaging
 
 The root package (`napari-clemreg`, the napari plugin) is defined via `setup.cfg`/`setup.py` (no `pyproject.toml`), versioned with `setuptools_scm`. Heavy/pinned dependencies include `napari`, `torch`, `open3d`, `empanada-dl`, and `probreg` — installs can be slow and are sensitive to version pins in `setup.cfg`.
