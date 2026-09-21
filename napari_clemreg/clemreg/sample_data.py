@@ -1,7 +1,23 @@
 from __future__ import annotations
 
 import numpy as np
-from skimage.io import imread
+import pooch
+import tifffile
+
+# Cached under the OS-appropriate app-cache directory (~/.cache/napari-clemreg
+# on Linux, ~/Library/Caches/napari-clemreg on macOS, %LOCALAPPDATA%\napari-clemreg
+# on Windows) so these ~275MB/~337MB files are downloaded once, not on every
+# call. Hashes pin the exact archived Zenodo record 7936982 files, verified on
+# fetch so a corrupted/interrupted download is caught rather than silently used.
+POOCH = pooch.create(
+    path=pooch.os_cache("napari-clemreg"),
+    base_url="https://zenodo.org/record/7936982/files/",
+    registry={
+        "em_20nm_z_40_145.tif": "sha256:805df382bee3c31a58b44e670d59eb2b299fe54a507151d4aff2f095d19c0f2a",
+        "EM04468_2_63x_pos8T_LM_raw.tif": "sha256:3afd3730fcafebf4355a494e36c04c338dad2cf84f0d970c4e5f653435c51131",
+    },
+)
+
 
 def make_sample_data():
     """Generates an image"""
@@ -12,9 +28,9 @@ def make_sample_data():
     # https://napari.org/stable/api/napari.Viewer.html#napari.Viewer.add_image
 
     print('Loading EM...')
-    em = imread('https://zenodo.org/record/7936982/files/em_20nm_z_40_145.tif', plugin='tifffile')
+    em = tifffile.imread(POOCH.fetch('em_20nm_z_40_145.tif', progressbar=True))
     print('Loading FM...')
-    fm = imread('https://zenodo.org/record/7936982/files/EM04468_2_63x_pos8T_LM_raw.tif', plugin='tifffile')
+    fm = tifffile.imread(POOCH.fetch('EM04468_2_63x_pos8T_LM_raw.tif', progressbar=True))
 
     fm = np.moveaxis(fm, -1, 0)
 
