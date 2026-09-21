@@ -40,7 +40,7 @@ def point_cloud_sampling(input: Labels,
     start_time = time.time()
 
     canny_img_list = []
-    for img in (input.data > 0).astype(np.bool):
+    for img in (input.data > 0).astype(bool):
         canny_img_list.append(feature.canny(img, sigma=sigma))
 
     canny_img = np.stack(canny_img_list)
