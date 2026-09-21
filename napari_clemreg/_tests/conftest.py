@@ -8,6 +8,7 @@ os.environ.setdefault("OMP_NUM_THREADS", "1")
 
 import numpy as np
 import pytest
+from scipy.ndimage import gaussian_filter
 
 
 @pytest.fixture
@@ -22,3 +23,38 @@ def seed():
 def rng():
     """A seeded numpy Generator for tests that need reproducible randomness."""
     return np.random.default_rng(0)
+
+
+def make_blob_volume(shape, centers, radius, rng, noise_sigma=0.02):
+    """Synthetic volume with Gaussian blobs at known centres, for
+    characterisation tests (§0.2 of the modernisation plan) -- generated
+    procedurally rather than committed as binary test data, so it stays
+    reproducible (seeded) without adding a fixture file to the repo.
+    """
+    vol = np.zeros(shape, dtype=np.float64)
+    zz, yy, xx = np.meshgrid(*[np.arange(s) for s in shape], indexing='ij')
+    for cz, cy, cx in centers:
+        dist2 = (zz - cz) ** 2 + (yy - cy) ** 2 + (xx - cx) ** 2
+        vol += np.exp(-dist2 / (2 * radius**2))
+    vol = gaussian_filter(vol, sigma=0.5)
+    vol += rng.normal(0, noise_sigma, size=shape)
+    return np.clip(vol, 0, None)
+
+
+# Fixed synthetic dataset shared by characterisation tests: 5 well-separated
+# blobs in a small volume. Centres/radius/seed are pinned so the resulting
+# segmentation/registration counts are a stable regression oracle.
+SYNTHETIC_BLOB_SHAPE = (40, 60, 60)
+SYNTHETIC_BLOB_CENTERS = [(10, 15, 15), (10, 45, 15), (10, 15, 45), (10, 45, 45), (30, 30, 30)]
+SYNTHETIC_BLOB_RADIUS = 4
+
+
+@pytest.fixture
+def synthetic_blob_volume():
+    """A reproducible synthetic volume with SYNTHETIC_BLOB_CENTERS blobs."""
+    return make_blob_volume(
+        SYNTHETIC_BLOB_SHAPE,
+        SYNTHETIC_BLOB_CENTERS,
+        SYNTHETIC_BLOB_RADIUS,
+        rng=np.random.default_rng(0),
+    )
