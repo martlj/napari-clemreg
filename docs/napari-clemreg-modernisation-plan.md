@@ -236,6 +236,14 @@ Revised 2026-09-21 per the update above — option 1 (git main) is now known to 
 
 Recommendation: raise the revised ask with the empanada maintainers early (option 4) while keeping option 2 as fallback once licensing is confirmed; treat "modern empanada core available under a confirmed license" as an explicit dependency of the §1 milestone.
 
+> **Update, checked 2026-09-21 — supersedes the recommendation above (see [issue #5](https://github.com/martlj/napari-clemreg/issues/5)):** Crick's AI-on-Demand (AIoD) infrastructure makes this whole dependency question moot. [`FrancisCrickInstitute/Segment-Flow`](https://github.com/FrancisCrickInstitute/Segment-Flow) (a Nextflow pipeline for deep-learning segmentation) runs empanada/MitoNet in its **own isolated per-model conda env** (`empanada-dl==0.1.6`, `numpy==1.26.4`), invoked as a subprocess — never in the same Python process or environment as napari-clemreg. That makes the namespace-collision problem above irrelevant, and moves the licensing question onto Segment-Flow rather than something clemreg vendors or distributes. Its companion [`FrancisCrickInstitute/aiod_napari`](https://github.com/FrancisCrickInstitute/aiod_napari) plugin is mature, actively maintained, **MIT-licensed**, and targets **Python 3.11/3.12 natively** — it already provides an "Inference" widget (point at images, pick model, press go, masks load back as napari Labels layers).
+>
+> Two integration options, in order of effort:
+> - **A. Installed alongside (no code changes).** Users install `aiod_napari` alongside `napari-clemreg`, run its Inference widget with the empanada/MitoNet model to get an EM segmentation Labels layer, then feed that layer into clemreg's existing `Point Cloud Sampling` split-registration widget (already accepts a Labels layer). Effort: a docs section, ~1-2 hours.
+> - **B. Tighter integration.** clemreg's own EM-segmentation widget shells out to Segment-Flow (`nextflow run FrancisCrickInstitute/Segment-Flow --model empanada --model_type mitonet ...`, via the `thread_worker` pattern already used elsewhere) instead of calling `empanada_segmentation()` in-process. ~1-3 days. Would permanently retire the `empanada-dl` dependency and #5 itself.
+>
+> Recommendation: do A now; treat B as the real long-term fix, ahead of vendoring (option 2 above) or reviving the maintainer outreach (option 4 above) — it outsources the dependency mess entirely rather than clemreg owning a vendored copy.
+
 ## 5. Suggested sequencing
 
 Testing leads, because everything after it is measured against the baseline it captures.
