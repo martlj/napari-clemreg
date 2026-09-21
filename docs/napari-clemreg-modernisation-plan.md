@@ -176,6 +176,7 @@ One dataset with sources:
 - In `run_registration.make_run_registration`, the results currently flow through `_add_data(return_value)`, which adds warped Image layers to the viewer. Add:
   - a widget toggle `output_mode` (choices: `napari layers` (current) / `MoBIE project`) plus a `mobie_project_path` `FileEdit` (mirror the existing `save_json` / `save_json_path` show/hide pattern in `on_init`).
   - when `MoBIE project` is chosen, branch **before** the expensive BCPD warp: for affine/rigid, skip `warp_image_volume` entirely and pass the raw moving list + matrix to the exporter; for BCPD, run the warp as today but hand the arrays to the exporter instead of `viewer.add_layer`.
+  - a separate `materialise_and_display: bool` checkbox, independent of `output_mode` (added 2026-09-21, per user request): when `MoBIE project` is chosen and this is checked, *also* run the resample/warp (even for affine/rigid, where the MoBIE path otherwise skips it) and add the result as a napari layer for immediate visual QC, in addition to writing the disk-efficient MoBIE project. Unchecked (the default for `MoBIE project` mode) keeps the no-resampling fast path. This only matters for affine/rigid — the BCPD path already resamples unconditionally, so for BCPD it's just "also add the layer napari already has to hand."
 - The refactor is cleanest if `run_point_cloud_registration_and_warping` returns the transform object and the (optionally un-warped) moving images, letting the caller decide whether to resample. Today it always resamples inside `warp_image_volume_from_list`; introduce a `resample: bool` / output-mode param so the affine path can short-circuit.
 
 ### 3.6 Dependencies for MoBIE
@@ -439,6 +440,24 @@ Keep `~/.pypirc` out of git (it holds secrets). Better still, once the repo is o
 - Add a **`CITATION.cff`** to the repo (renders a "Cite this repository" button on GitHub) carrying the Nature Methods citation and, once minted, the Zenodo concept DOI.
 - Put the concept DOI badge in the README next to the paper citation.
 - Keep this distinct from the sample-data Zenodo record (7936982), which archives data, not code.
+
+## 8. Sample data & caching
+
+Added 2026-09-21, per user request. Two gaps, both grounded in the current code rather than assumed:
+
+### 8.1 Cache the Zenodo sample data and MitoNet model weights
+
+**Current state, checked against the actual code:** `sample_data.py`'s `make_sample_data()` calls `skimage.io.imread(url, plugin='tifffile')` directly on two Zenodo URLs (record 7936982, one EM tiff + one 4-channel FM tiff) — this re-downloads **both files on every call**, straight into memory, with no caching or checksum verification at all. Separately, `empanada_segmentation.py`'s `load_model_to_device` already does its own ad hoc caching for the MitoNet checkpoint: it resolves a cache directory via `torch.hub.get_dir()` (PyTorch's own convention: `$TORCH_HOME/hub`, else `$XDG_CACHE_HOME/torch/hub`, else `~/.cache/torch/hub`), checks `os.path.exists(cached_file)` before downloading, and skips the download if already cached. Functional, but no checksum verification, and it's a second, uncoordinated caching scheme separate from the sample data.
+
+**Best practice for this (scientific-Python / napari ecosystem convention): [`pooch`](https://www.fatiando.org/pooch/).** It's what napari itself and most napari plugins already use for downloadable sample data — `pooch.create()` with a registry of known files + SHA256 hashes, cache directory via `pooch.os_cache("napari-clemreg")` (resolves the correct per-OS location automatically via `platformdirs` under the hood: `~/.cache/napari-clemreg` on Linux, `~/Library/Caches/napari-clemreg` on macOS, `%LOCALAPPDATA%\napari-clemreg\Cache` on Windows). Gives: no repeat downloads, checksum verification (catches corrupted/interrupted downloads silently reused otherwise), a predictable/discoverable/clearable cache location, and matches what contributors coming from other napari plugins will already expect.
+
+**Open decision, not resolved here:** whether to also move the MitoNet checkpoint caching onto `pooch` for one unified cache/verification story, or leave `empanada_segmentation.py`'s existing `torch.hub`-based caching as-is (it already works, needs no new dependency, and matches standard PyTorch-tooling convention). Either is defensible; worth an explicit call before implementing rather than defaulting silently.
+
+### 8.2 Bundle the existing EM segmentation mask as sample data, for GPU-less users
+
+**Already in the repo:** `notebooks/data/em_mask.tif` — a precomputed EM segmentation, ~971 KB, already TIFF-internally-compressed (deflate), shape `[106, 1750, 1484]`, 8-bit. Currently only used in `notebooks/clemreg_batch_mode.ipynb` (loaded as a `Labels` layer there). It's the only existing compressed EM mask found anywhere in the repo.
+
+**Add it as a second `napari.yaml` `sample_data` entry**, alongside the existing `benchmark_dataset.1` (raw EM/FM images), loading `em_mask.tif` directly as a `Labels` layer. This lets users without a GPU — who can't run the empanada/MitoNet EM-segmentation step at all — still exercise the rest of the pipeline (point-cloud sampling → registration → warping) starting from this precomputed mask. Since the file is small and already in the repo, bundle it directly via `[options.package_data]` (no download needed) rather than adding it to the Zenodo-hosted sample-data set — simpler, and it's already sitting there unused outside the one notebook.
 
 ## Sources
 
