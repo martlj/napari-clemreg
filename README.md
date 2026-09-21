@@ -63,18 +63,29 @@ This is `open3d` (a dependency), which needs both the [Microsoft Visual C++ Redi
 
 This fork (`martlj/napari-clemreg`) is being actively modernised — see [docs/napari-clemreg-modernisation-plan.md](docs/napari-clemreg-modernisation-plan.md) for the full plan. Unlike the released PyPI package above, it now requires **Python 3.11+**.
 
-`empanada-dl` (needed for the bundled EM Segmentation widget) currently blocks a normal install on Python 3.11 — it hard-pins `numpy==1.22`, which has no Python 3.11 wheels (tracked in [issue #5](https://github.com/martlj/napari-clemreg/issues/5)). Until that's resolved, install everything else and skip it:
+`empanada-dl` (needed for the bundled EM Segmentation widget) currently blocks a normal install on Python 3.11 — it hard-pins `numpy==1.22`, which has no Python 3.11 wheels (tracked in [issue #5](https://github.com/martlj/napari-clemreg/issues/5)). Until that's resolved, install everything else and skip it.
+
+Using [`uv`](https://docs.astral.sh/uv/) (recommended — fast, and installs the Python version for you if needed):
 
 ```
-conda create -n clemreg_dev python=3.11
-conda activate clemreg_dev
+git clone https://github.com/martlj/napari-clemreg.git
+cd napari-clemreg
+uv venv --python 3.11
+source .venv/bin/activate   # .venv\Scripts\activate on Windows
+uv pip install typing_extensions setuptools packaging pint numpy scipy "scikit-image>=0.22" "magicgui>=0.8.3" "napari>=0.6" open3d probreg transforms3d tqdm h5py matplotlib imageio tifffile torch connected-components-3d pyqt5
+uv pip install -e . --no-deps
+```
+
+Or with plain `pip` (needs an existing Python 3.11+ interpreter, e.g. via conda — `conda create -n clemreg_dev python=3.11 && conda activate clemreg_dev`), same package list:
+
+```
 git clone https://github.com/martlj/napari-clemreg.git
 cd napari-clemreg
 pip install typing_extensions setuptools packaging pint numpy scipy "scikit-image>=0.22" "magicgui>=0.8.3" "napari>=0.6" open3d probreg transforms3d tqdm h5py matplotlib imageio tifffile torch connected-components-3d pyqt5
 pip install -e . --no-deps
 ```
 
-This gives you a working install of everything **except** the bundled EM Segmentation (MitoNet/empanada) widget. For EM segmentation, use [AI-on-Demand instead](#using-ai-on-demand-aiod-for-em-segmentation) — see Usage below.
+Either way, this gives you a working install of everything **except** the bundled EM Segmentation (MitoNet/empanada) widget. For EM segmentation, use [AI-on-Demand instead](#using-ai-on-demand-aiod-for-em-segmentation) — see Usage below.
 
 ### Docker Container
 If you would like to run `napari-clemreg` in a docker container instead of installing it as above, please follow the instructions in our [Docker guide](docker_guide.md)
