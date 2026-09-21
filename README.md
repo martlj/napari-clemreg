@@ -133,6 +133,16 @@ their own unique input and output:
 
 [![Watch the video](docs%2Fimages%2Fclemreg_split_registration_thumbnail.png)](https://youtu.be/cypDti0UUwY)
 
+### Using AI-on-Demand (AIoD) for EM Segmentation
+
+The bundled `Electron Microscopy (EM) Segmentation` widget uses MitoNet via `empanada-dl`, a dependency that is no longer actively maintained and can be difficult to install alongside a modern Python/napari setup. As an alternative, you can run MitoNet through the Crick's [AI-on-Demand (AIoD)](https://franciscrickinstitute.github.io/aiod_docs/) project instead, and feed its output straight into CLEM-Reg's own `Point Cloud Sampling` widget — no changes to the rest of the CLEM-Reg workflow are needed.
+
+1. Install the [`aiod_napari`](https://github.com/FrancisCrickInstitute/aiod_napari) plugin alongside `napari-clemreg` in the same environment (it additionally requires [Nextflow](https://www.nextflow.io/) and Conda to actually run models — see AIoD's [Prerequisites](https://franciscrickinstitute.github.io/aiod_docs/sections/getting_started/#prerequisites)).
+2. Open `Plugins → AI OnDemand → Inference`, point it at your EM image, and select the `empanada` model (MitoNet). AIoD handles splitting the volume, running the model — locally or on HPC, depending on profile — caching results, and loading the resulting segmentation back into napari as a `Labels` layer.
+3. Use that `Labels` layer directly as the **EM Segmentation** input to CLEM-Reg's `Point Cloud Sampling` widget, then continue with `Point Cloud Registration & Image Warping` as usual.
+
+See AIoD's [Inference widget documentation](https://franciscrickinstitute.github.io/aiod_docs/sections/front_ends/napari_plugin/inference/) for the full walkthrough.
+
 ### Registering Multiple LM Channels
 One can register multiple LM channels at once by doing the following.
 
