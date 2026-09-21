@@ -10,7 +10,6 @@ from napari.layers import Image, Shapes, Labels, Points
 from napari.utils.notifications import show_error
 
 from pathlib import Path
-from ..clemreg.empanada_segmentation import empanada_segmentation
 from ..clemreg.point_cloud_registration import point_cloud_registration
 from ..clemreg.point_cloud_sampling import point_cloud_sampling
 from ..clemreg.warp_image_volume import warp_image_volume
