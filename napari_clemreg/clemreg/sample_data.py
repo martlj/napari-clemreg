@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import importlib.resources
+
 import numpy as np
 import pooch
 import tifffile
@@ -47,3 +49,16 @@ def make_sample_data():
             (fm[2, 7:], {'blending': 'additive', 'colormap': 'cyan', 'name': 'FM_Mitotracker', 'metadata': fm_metadata}),
             (fm[3, 7:], {'blending': 'additive', 'colormap': 'blue', 'name': 'FM_Hoechst', 'metadata': fm_metadata})
             ]
+
+
+def make_em_mask_sample_data():
+    """A precomputed EM segmentation mask (mitochondria instances) matching
+    the EM volume in ``make_sample_data``, for exercising the pipeline from
+    Point Cloud Sampling onward without a GPU or the bundled MitoNet/empanada
+    widget (see issue #12). Bundled directly in the package (~1MB) rather
+    than fetched, since it's small and was already sitting unused in
+    notebooks/data/em_mask.tif.
+    """
+    path = importlib.resources.files('napari_clemreg.clemreg.data') / 'em_mask.tif'
+    mask = tifffile.imread(path)
+    return [(mask, {'name': 'EM_mask'}, 'labels')]
