@@ -5,17 +5,20 @@ from napari.utils.notifications import show_error
 from napari.qt.threading import thread_worker
 
 from ..clemreg.on_init_specs import specs
+from ..clemreg._qt_layout import wrap_in_scroll_area
 
 @magic_factory(layout='vertical', call_button='Segment',
                widget_header={'widget_type': 'Label',
                               'label': f'<h2 text-align="left">Electron Microscopy Segmentation</h2>'},
                Fixed_Image=specs['Fixed_Image'],
                em_seg_axis=specs['em_seg_axis'],
+               em_segmentation_backend=specs['em_segmentation_backend'],
                )
 def fixed_segmentation_widget(viewer: 'napari.viewer.Viewer',
                               widget_header,
                               Fixed_Image: Image,
-                              em_seg_axis: bool
+                              em_seg_axis: bool,
+                              em_segmentation_backend: str
                               ):
     """
     This widget takes an EM image as input and performs
@@ -32,6 +35,9 @@ def fixed_segmentation_widget(viewer: 'napari.viewer.Viewer',
         The EM Image
     em_seg_axis :
         Option to run segmentation across three axis
+    em_segmentation_backend :
+        Which EM segmentation backend to use: the bundled empanada-dl
+        (MitoNet), or Crick's AI-on-Demand (Segment-Flow) pipeline
 
     Returns
     -------
@@ -40,7 +46,6 @@ def fixed_segmentation_widget(viewer: 'napari.viewer.Viewer',
 
     """
     import numpy as np
-    from ..clemreg.empanada_segmentation import empanada_segmentation
 
     @thread_worker
     def _run_fixed_thread(**kwargs):
@@ -71,6 +76,27 @@ def fixed_segmentation_widget(viewer: 'napari.viewer.Viewer',
         return
 
     worker_fixed = _run_fixed_thread(Fixed_Image=Fixed_Image,
-                                     em_seg_axis=em_seg_axis)
+                                     em_seg_axis=em_seg_axis,
+                                     em_segmentation_backend=em_segmentation_backend)
     worker_fixed.returned.connect(_add_data)
     worker_fixed.start()
+
+
+def fixed_segmentation_dock_widget(napari_viewer: 'napari.viewer.Viewer' = None):
+    """The actual napari-docked widget -- wraps fixed_segmentation_widget()
+    in a QScrollArea so the panel has a bounded height/width, matching
+    AIoD's own napari plugin's approach (verified against its real
+    source). This widget is small (3 fields), so there's no burst-reveal
+    lag to fix here, but the same scroll-bounding is applied for
+    consistency across every widget in this plugin.
+
+    napari_viewer defaults to None and is otherwise unused -- confirmed
+    in napari's own source that viewer-injection-by-parameter-name only
+    applies to class-based widgets, not plain functions like this one
+    (see the longer note in run_registration.make_run_registration_widget).
+    """
+    # magic_factory's __call__ treats kwargs as widget-option overrides,
+    # not runtime values, so call with no args and let its own
+    # Viewer-typed-parameter auto-injection resolve the current viewer.
+    gui = fixed_segmentation_widget()
+    return wrap_in_scroll_area(gui.native)

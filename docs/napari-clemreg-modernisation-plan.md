@@ -121,7 +121,7 @@ Action: verify these still exist/behave in 0.6.6. `link_layers` has a public ali
 
 ### 2.4 Tests / Qt
 
-- `tox.ini` deps pin `pyqt5`; napari 0.6 supports PyQt5/6 and PySide6. Keep pyqt5 for CI but confirm it resolves on 3.11/3.12.
+- > **Update, checked 2026-09-22 (issue #19):** switched from `pyqt5` to `pyqt6` — napari-clemreg's own code only touches Qt via `qtpy`'s abstraction (no direct PyQt5 imports), and napari itself now recommends a Qt6 backend for full feature support (system theme detection). Verified: the full widget suite and test suite behave identically under both bindings on Python 3.11/3.12.
 - `_tests/test_dock_widget.py` — update to instantiate widgets via the new factory and assert they build under a `make_napari_viewer` fixture.
 
 ---

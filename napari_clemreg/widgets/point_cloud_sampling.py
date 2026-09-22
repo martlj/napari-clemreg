@@ -3,6 +3,7 @@ from magicgui import magic_factory
 from napari.layers import Labels, Image, Layer
 from napari.qt.threading import thread_worker
 from ..clemreg.on_init_specs import specs
+from ..clemreg._qt_layout import wrap_in_scroll_area
 
 def on_init(widget):
     from ..clemreg.data_preprocessing import get_pixelsize
@@ -37,6 +38,15 @@ def on_init(widget):
 
     widget.Moving_Segmentation.changed.connect(change_moving_pixelsize)
     widget.Fixed_Segmentation.changed.connect(change_fixed_pixelsize)
+
+    # Same bug as run_registration.py's Moving_Image/Fixed_Image fields:
+    # a layer already selected at construction time never fires its own
+    # `changed` signal, so pixel sizes stayed at their placeholder value
+    # until the user manually reselected a layer. Seed both once here.
+    if widget.Moving_Segmentation.value is not None:
+        change_moving_pixelsize(widget.Moving_Segmentation.value)
+    if widget.Fixed_Segmentation.value is not None:
+        change_fixed_pixelsize(widget.Fixed_Segmentation.value)
 
 
 @magic_factory(widget_init=on_init, layout='vertical', call_button='Sample',
@@ -119,3 +129,20 @@ def point_cloud_sampling_widget(viewer: 'napari.viewer.Viewer',
                                                           point_cloud_sigma=point_cloud_sigma)
     worker_pc_sampling.returned.connect(_add_data)
     worker_pc_sampling.start()
+
+
+def point_cloud_sampling_dock_widget(napari_viewer: 'napari.viewer.Viewer' = None):
+    """The actual napari-docked widget -- wraps point_cloud_sampling_widget()
+    in a QScrollArea for a bounded height/width, matching AIoD's own
+    napari plugin's approach (verified against its real source).
+
+    napari_viewer defaults to None and is otherwise unused -- confirmed
+    in napari's own source that viewer-injection-by-parameter-name only
+    applies to class-based widgets, not plain functions like this one
+    (see the longer note in run_registration.make_run_registration_widget).
+    """
+    # magic_factory's __call__ treats kwargs as widget-option overrides,
+    # not runtime values, so call with no args and let its own
+    # Viewer-typed-parameter auto-injection resolve the current viewer.
+    gui = point_cloud_sampling_widget()
+    return wrap_in_scroll_area(gui.native)

@@ -5,27 +5,22 @@ from napari.utils.notifications import show_error
 from napari.qt.threading import thread_worker
 
 from ..clemreg.on_init_specs import specs
+from ..clemreg._qt_layout import group_into_collapsible, wrap_in_scroll_area
 
 def on_init(widget):
     from ..clemreg.data_preprocessing import get_pixelsize
 
-    custom_z_zom_settings = ['z_zoom']
     filter_segmentation_settings = ['filter_size_lower', 'filter_size_upper']
 
-    standard_settings = ['Moving_Image',
-                         'Mask_ROI',
-                         'log_sigma',
-                         'log_threshold',
-                         'filter_segmentation']
-    advanced_settings = ['z_min',
-                         'z_max',
-                         'filter_size_lower',
-                         'filter_size_upper']
-
-    for x in standard_settings:
-        setattr(getattr(widget, x), 'visible', True)
-    for x in advanced_settings:
+    for x in ['z_min', 'z_max'] + filter_segmentation_settings:
         setattr(getattr(widget, x), 'visible', False)
+
+    # Grouped into its own collapsible section for consistency with the
+    # other widgets in this plugin, even though this one is small enough
+    # that the old flat show/hide wasn't causing the lag/height problems
+    # run_registration.py had -- see the comment there for the full story.
+    group_into_collapsible(widget, 'Size Filter',
+                           ['filter_segmentation', 'filter_size_lower', 'filter_size_upper'])
 
     def change_z_max(input_image: Image):
         if len(input_image.data.shape) == 3:
@@ -41,6 +36,14 @@ def on_init(widget):
     def change_z_max_from_z_min(z_min_val: int):
         widget.z_max.min = z_min_val
 
+    # Qt widgets don't auto-shrink once they've been made larger -- hiding
+    # child widgets recomputes the container's sizeHint correctly, but
+    # nothing makes the actual widget follow it back down without an
+    # explicit adjustSize() call (confirmed directly on the equivalent bug
+    # in run_registration.py's "Parameters custom" toggle).
+    def _shrink_to_fit():
+        widget.native.adjustSize()
+
     def reveal_z_min_and_z_max():
         if len(widget.Mask_ROI.choices) > 0:
             for x in ['z_min', 'z_max']:
@@ -48,6 +51,7 @@ def on_init(widget):
         else:
             for x in ['z_min', 'z_max']:
                 setattr(getattr(widget, x), 'visible', False)
+        _shrink_to_fit()
 
     def toggle_filter_segmentation(filter_segmentation: bool):
         if filter_segmentation:
@@ -56,6 +60,7 @@ def on_init(widget):
         else:
             for x in filter_segmentation_settings:
                 setattr(getattr(widget, x), 'visible', False)
+        _shrink_to_fit()
 
     widget.z_max.changed.connect(change_z_min)
     widget.Moving_Image.changed.connect(change_z_max)
@@ -186,3 +191,20 @@ def moving_segmentation_widget(viewer: 'napari.viewer.Viewer',
     # worker_moving.finished.connect(_add_data)
 
     worker_moving.start()
+
+
+def moving_segmentation_dock_widget(napari_viewer: 'napari.viewer.Viewer' = None):
+    """The actual napari-docked widget -- wraps moving_segmentation_widget()
+    in a QScrollArea for a bounded height/width, matching AIoD's own
+    napari plugin's approach (verified against its real source).
+
+    napari_viewer defaults to None and is otherwise unused -- confirmed
+    in napari's own source that viewer-injection-by-parameter-name only
+    applies to class-based widgets, not plain functions like this one
+    (see the longer note in run_registration.make_run_registration_widget).
+    """
+    # magic_factory's __call__ treats kwargs as widget-option overrides,
+    # not runtime values, so call with no args and let its own
+    # Viewer-typed-parameter auto-injection resolve the current viewer.
+    gui = moving_segmentation_widget()
+    return wrap_in_scroll_area(gui.native)

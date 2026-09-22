@@ -14,6 +14,7 @@ from napari.layers import Image, Shapes, Labels, Points
 from napari.utils.notifications import show_error
 from napari.qt.threading import GeneratorWorker
 from ..clemreg.on_init_specs import specs
+from ..clemreg._qt_layout import group_into_collapsible, wrap_in_scroll_area
 
 # Use as worker.join workaround --> Launch registration thread_worker from here
 class RegistrationThreadJoiner:
@@ -80,76 +81,60 @@ def on_init(widget):
     """
     from ..clemreg.data_preprocessing import get_pixelsize
 
-    standard_settings = ['widget_header', 'Moving_Image', 'Fixed_Image', 'Mask_ROI', 'advanced']
-    advanced_settings = ['em_seg_header',
-                         'em_seg_axis',
-                         'log_header',
-                         'log_sigma',
-                         'log_threshold',
-                         'filter_segmentation',
-                         'point_cloud_header',
-                         'point_cloud_sampling_frequency',
-                         'point_cloud_sigma',
-                         'registration_header',
-                         'registration_voxel_size',
-                         'registration_max_iterations',
-                         'warping_header',
-                         'warping_interpolation_order',
-                         'warping_approximate_grid',
-                         'warping_sub_division_factor',
-                         'save_json',
-                         'visualise_intermediate_results']
-
     json_settings = ['load_json_file']
     filter_segmentation_settings = ['filter_size_lower', 'filter_size_upper']
     save_json_settings = ['save_json_path']
 
-    for x in standard_settings:
-        setattr(getattr(widget, x), 'visible', True)
-    for x in advanced_settings + ['z_min', 'z_max'] + json_settings + filter_segmentation_settings + save_json_settings:
+    for x in json_settings + filter_segmentation_settings + save_json_settings + ['z_min', 'z_max']:
         setattr(getattr(widget, x), 'visible', False)
 
-    def toggle_transform_widget(advanced: bool):
-        if advanced:
-            for x in advanced_settings + standard_settings:
-                setattr(getattr(widget, x), 'visible', True)
-            for x in json_settings:
-                setattr(getattr(widget, x), 'visible', False)
+    # These used to be one flat list of ~20 widgets shown/hidden together
+    # behind a single "Parameters custom" checkbox -- confirmed directly
+    # that revealing them all in one burst was a real, several-second-plus
+    # Qt style-polish/layout cost (worse than the isolated per-widget
+    # cost, which profiles at under 10ms), and that the panel had no
+    # bound on how tall it could grow as a result. Splitting them into
+    # independent, always-present QCollapsible sections (collapsed by
+    # default) means expanding one group only lays out that group's own
+    # handful of widgets -- matching AIoD's own napari plugin, verified
+    # against its real source, not guessed. The panel's overall height is
+    # separately bounded by wrap_in_scroll_area() in
+    # make_run_registration_widget() below.
+    group_into_collapsible(widget, 'EM Segmentation Parameters',
+                           ['em_seg_axis', 'em_segmentation_backend'])
+    group_into_collapsible(widget, 'LoG Segmentation Parameters',
+                           ['log_sigma', 'log_threshold', 'filter_segmentation',
+                            'filter_size_lower', 'filter_size_upper'])
+    group_into_collapsible(widget, 'Point Cloud Sampling',
+                           ['point_cloud_sampling_frequency', 'point_cloud_sigma'])
+    group_into_collapsible(widget, 'Point Cloud Registration',
+                           ['registration_voxel_size', 'registration_max_iterations'])
+    group_into_collapsible(widget, 'Image Warping',
+                           ['warping_interpolation_order', 'warping_approximate_grid',
+                            'warping_sub_division_factor'])
 
-            if widget.params_from_json.value:
-                widget.params_from_json.value = False
-
-        else:
-            for x in standard_settings:
-                setattr(getattr(widget, x), 'visible', True)
-            for x in advanced_settings:
-                setattr(getattr(widget, x), 'visible', False)
+    # Cheap insurance for the same "doesn't shrink back down" behaviour
+    # on the few small toggles left (1-2 widgets each) -- harmless even
+    # now that the whole panel is scroll-bounded, and keeps the panel's
+    # own content compact within the scroll area rather than leaving a
+    # gap.
+    def _shrink_to_fit():
+        widget.native.adjustSize()
 
     def toggle_json_widget(load_json: bool):
-        if load_json:
-            for x in json_settings:
-                setattr(getattr(widget, x), 'visible', True)
-            if widget.advanced.value:
-                widget.advanced.value = False
-        else:
-            for x in json_settings:
-                setattr(getattr(widget, x), 'visible', False)
+        for x in json_settings:
+            setattr(getattr(widget, x), 'visible', load_json)
+        _shrink_to_fit()
 
     def toggle_filter_segmentation(filter_segmentation: bool):
-        if filter_segmentation:
-            for x in filter_segmentation_settings:
-                setattr(getattr(widget, x), 'visible', True)
-        else:
-            for x in filter_segmentation_settings:
-                setattr(getattr(widget, x), 'visible', False)
+        for x in filter_segmentation_settings:
+            setattr(getattr(widget, x), 'visible', filter_segmentation)
+        _shrink_to_fit()
 
     def toggle_save_json(save_json: bool):
-        if save_json:
-            for x in save_json_settings:
-                setattr(getattr(widget, x), 'visible', True)
-        else:
-            for x in save_json_settings:
-                setattr(getattr(widget, x), 'visible', False)
+        for x in save_json_settings:
+            setattr(getattr(widget, x), 'visible', save_json)
+        _shrink_to_fit()
 
     def change_z_max(input_image: Image):
         if len(input_image.data.shape) == 3:
@@ -208,10 +193,22 @@ def on_init(widget):
     widget.Fixed_Image.changed.connect(change_fixed_pixelsize)
     widget.z_min.changed.connect(change_z_max_from_z_min)
     widget.Mask_ROI.changed.connect(reveal_z_min_and_z_max)
-    widget.advanced.changed.connect(toggle_transform_widget)
     widget.params_from_json.changed.connect(toggle_json_widget)
     widget.filter_segmentation.changed.connect(toggle_filter_segmentation)
     widget.save_json.changed.connect(toggle_save_json)
+
+    # A layer already selected at construction time (e.g. auto-selected
+    # because it's the only choice, or the EM layer matching by name)
+    # never fires its own `changed` signal -- nothing actually changed
+    # from the widget's point of view -- so pixel sizes stayed at their
+    # "0 nanometer" placeholder until the user manually reselected a
+    # layer. Confirmed directly: this is exactly what was happening with
+    # the EM layer, which starts pre-selected as the only available
+    # choice. Seed both fields once here to match what's already shown.
+    if widget.Moving_Image.value is not None:
+        change_moving_pixelsize(widget.Moving_Image.value)
+    if widget.Fixed_Image.value is not None:
+        change_fixed_pixelsize(widget.Fixed_Image.value)
 
 @magic_factory(widget_init=on_init, layout='vertical', call_button='Register',
                widget_header={'widget_type': 'Label',
@@ -222,15 +219,9 @@ def on_init(widget):
                registration_algorithm=specs['registration_algorithm'],
                params_from_json=specs['params_from_json'],
                load_json_file=specs['load_json_file'],
-               advanced=specs['advanced'],
-
-               em_seg_header={'widget_type': 'Label',
-                              'label': f'<h3 text-align="left">MitoNet Segmentation Parameters</h3>'},
 
                em_seg_axis=specs['em_seg_axis'],
-
-               log_header={'widget_type': 'Label',
-                           'label': f'<h3 text-align="left">LoG Segmentation Parameters</h3>'},
+               em_segmentation_backend=specs['em_segmentation_backend'],
 
                log_sigma=specs['log_sigma'],
                log_threshold=specs['log_threshold'],
@@ -238,18 +229,12 @@ def on_init(widget):
                filter_size_lower=specs['filter_size_lower'],
                filter_size_upper=specs['filter_size_upper'],
 
-               point_cloud_header={'widget_type': 'Label',
-                                   'label': f'<h3 text-align="left">Point Cloud Sampling</h3>'},
                point_cloud_sampling_frequency=specs['point_cloud_sampling_frequency'],
                point_cloud_sigma=specs['point_cloud_sigma'],
 
-               registration_header={'widget_type': 'Label',
-                                    'label': f'<h3 text-align="left">Point Cloud Registration</h3>'},
                registration_voxel_size=specs['registration_voxel_size'],
                registration_max_iterations=specs['registration_max_iterations'],
 
-               warping_header={'widget_type': 'Label',
-                               'label': f'<h3 text-align="left">Image Warping</h3>'},
                warping_interpolation_order=specs['warping_interpolation_order'],
                warping_approximate_grid=specs['warping_approximate_grid'],
                warping_sub_division_factor=specs['warping_sub_division_factor'],
@@ -282,27 +267,22 @@ def make_run_registration(
         registration_algorithm,
         params_from_json,
         load_json_file,
-        advanced,
 
-        em_seg_header,
         em_seg_axis,
+        em_segmentation_backend,
 
-        log_header,
         log_sigma,
         log_threshold,
         filter_segmentation,
         filter_size_lower,
         filter_size_upper,
 
-        point_cloud_header,
         point_cloud_sampling_frequency,
         registration_voxel_size,
         point_cloud_sigma,
 
-        registration_header,
         registration_max_iterations,
 
-        warping_header,
         warping_interpolation_order,
         warping_approximate_grid,
         warping_sub_division_factor,
@@ -326,26 +306,16 @@ def make_run_registration(
     z_min
     z_max
     registration_algorithm
-    advanced
-    white_space_0
-    em_seg_header
     em_seg_axis
-    white_space_1
-    log_header
+    em_segmentation_backend
     log_sigma
     log_threshold
     zoom_value
     filter_size
-    white_space_2
-    point_cloud_header
     point_cloud_sampling_frequency
     point_cloud_sigma
-    white_space_3
-    registration_header
     registration_voxel_size
     registration_max_iterations
-    white_space_4
-    warping_header
     warping_interpolation_order
     warping_approximate_grid
     warping_sub_division_factor
@@ -355,7 +325,6 @@ def make_run_registration(
 
     """
     from pathlib import Path
-    from ..clemreg.empanada_segmentation import empanada_segmentation
     from ..clemreg.log_segmentation import log_segmentation, filter_binary_segmentation
     from ..clemreg.mask_roi import mask_roi, mask_area
     from ..clemreg.point_cloud_registration import point_cloud_registration
@@ -559,9 +528,41 @@ def make_run_registration(
     worker_moving.start()
 
     worker_fixed = _run_fixed_thread(Fixed_Image=Fixed_Image,
-                                     em_seg_axis=em_seg_axis)
+                                     em_seg_axis=em_seg_axis,
+                                     em_segmentation_backend=em_segmentation_backend)
     worker_fixed.returned.connect(_class_setter_fixed)
     worker_fixed.finished.connect(_finished_fixed_emitter)
     worker_fixed.errored.connect(_fixed_segmentation_errored)
     worker_fixed.yielded.connect(_yield_segmentation)
     worker_fixed.start()
+
+
+def make_run_registration_widget(napari_viewer: 'napari.viewer.Viewer' = None):
+    """The actual napari-docked widget. Builds the same FunctionGui as
+    ``make_run_registration()`` (kept as its own importable factory --
+    unchanged for anything, such as the tests, that wants the raw
+    magicgui object and its fields directly), then wraps its native
+    widget in a QScrollArea so the dock panel has a bounded height no
+    matter how many of the collapsible sections above are expanded at
+    once -- matching AIoD's own napari plugin's approach (verified
+    against its real source), rather than the ad hoc sizeHint/adjustSize
+    patching this used before.
+    """
+    # napari_viewer defaults to None and is otherwise unused -- confirmed
+    # directly in napari's own source (_qnpe2._get_widget_viewer_param)
+    # that its viewer-auto-injection-by-parameter-name only applies to
+    # class-based (QWidget/magicgui.widgets.Widget subclass) widgets; for
+    # a plain function like this one it's unconditionally skipped ("For
+    # magicgui type widget contributions, Viewer injection is done by
+    # magicgui.register_type instead" -- that code's own comment), so
+    # napari calls this with zero arguments. A required positional
+    # parameter here crashed with exactly that TypeError.
+    #
+    # magic_factory's own __call__ also treats kwargs as widget-option
+    # overrides, not runtime values -- confirmed directly
+    # (`viewer=napari_viewer` raised "must be a dict"). So: call with no
+    # args and let its own Viewer-typed-parameter auto-injection (via
+    # magicgui's registered napari.viewer.Viewer type provider) resolve
+    # it, exactly as it already did before this widget was wrapped.
+    gui = make_run_registration()
+    return wrap_in_scroll_area(gui.native)

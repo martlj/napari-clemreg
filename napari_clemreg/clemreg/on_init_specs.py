@@ -28,13 +28,17 @@ specs = {
                     'mode': 'r',
                     'filter': '*.json'},
 
-    'advanced':{'text': 'Parameters custom',
-              'widget_type': 'CheckBox',
-              'value': False},
-
     'em_seg_axis':{'text': 'Prediction Across Three Axis',
                  'widget_type': 'CheckBox',
                  'value': False},
+
+    'em_segmentation_backend':{'label': 'EM Segmentation Backend',
+                             'widget_type': 'ComboBox',
+                             'choices': ['empanada (local)', 'AI-on-Demand (Segment-Flow)'],
+                             'value': 'empanada (local)',
+                             'tooltip': 'empanada (local) requires empanada-dl (see issue #5). '
+                                        'AI-on-Demand (Segment-Flow) shells out to a Nextflow '
+                                        'pipeline and requires Nextflow and Conda on PATH.'},
 
     'log_sigma':{'label': 'Sigma',
                'widget_type': 'FloatSpinBox',
