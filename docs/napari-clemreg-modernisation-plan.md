@@ -383,7 +383,7 @@ Note: branching does not depend on the org move, and reserving the PyPI name (§
 
 ### 7.6 Publishing the `clemreg` placeholder to PyPI
 
-Goal: reserve the `clemreg` name with a `0.0.0` placeholder (built from `packages/clemreg/`, staged on `feature/split-clemreg-core`). Reserving the name does **not** require merging the PR — build and upload can happen from the branch.
+Goal: reserve the `clemreg` name with a `0.0.0` placeholder (built from `packages/clemreg/`, staged on `modernisation`). Reserving the name does **not** require merging the PR — build and upload can happen from the branch.
 
 **Steps** (run from `packages/clemreg/`):
 

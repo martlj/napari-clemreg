@@ -6,6 +6,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 This is a personal fork (`martlj/napari-clemreg`) of `krentzd/napari-clemreg`. `origin` is the fork; `upstream` is the original. Push work to `origin`; only pull from `upstream` to sync in changes from the original project.
 
+## Branching
+
+`main` is a clean mirror of upstream — never commit fork-specific work there. Modernisation work happens on `modernisation` (the integration branch) via one branch per issue, e.g. `6-mobie-export`, merged in via PR. See [CONTRIBUTING.md](CONTRIBUTING.md) for the full workflow before starting new work.
+
 ## Commands
 
 Install the plugin locally (Python 3.9 recommended, per README):
@@ -65,7 +69,7 @@ The full pipeline (EM segmentation → FM segmentation → point-cloud sampling 
 
 ### In-progress package split
 
-`packages/clemreg/` is a placeholder for extracting the `clemreg/` core (segmentation, point-cloud sampling, registration, warping, plus a planned MoBIE export) into a standalone, napari-free PyPI package (`clemreg`, requires Python ≥3.11, built with hatchling — separate from the root package's setuptools/Python ≥3.7 config). It currently only reserves the PyPI name (version `0.0.0`, no functionality). The napari plugin in this repo will eventually depend on that core package rather than containing the algorithms directly. This is being tracked on the `feature/split-clemreg-core` branch.
+`packages/clemreg/` is a placeholder for extracting the `clemreg/` core (segmentation, point-cloud sampling, registration, warping, plus a planned MoBIE export) into a standalone, napari-free PyPI package (`clemreg`, requires Python ≥3.11, built with hatchling — separate from the root package's setuptools/Python ≥3.7 config). It currently only reserves the PyPI name (version `0.0.0`, no functionality). The napari plugin in this repo will eventually depend on that core package rather than containing the algorithms directly. This is being tracked on the `modernisation` branch.
 
 The full plan (testing foundation, Python 3.11 + napari 0.6.6 upgrade, MoBIE export, the core/widget split, and the repo/PyPI/release strategy) is in [docs/napari-clemreg-modernisation-plan.md](docs/napari-clemreg-modernisation-plan.md) — read it before starting work related to any of those areas.
 

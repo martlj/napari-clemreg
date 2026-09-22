@@ -61,16 +61,16 @@ This is `open3d` (a dependency), which needs both the [Microsoft Visual C++ Redi
 
 ### Development Installation (this fork)
 
-This fork (`martlj/napari-clemreg`) is being actively modernised — see [docs/napari-clemreg-modernisation-plan.md](docs/napari-clemreg-modernisation-plan.md) for the full plan. **All of this work lives on the `feature/split-clemreg-core` branch, not `main`** — the default branch you'd get from a plain `git clone` doesn't have it yet.
+This fork (`martlj/napari-clemreg`) is being actively modernised — see [docs/napari-clemreg-modernisation-plan.md](docs/napari-clemreg-modernisation-plan.md) for the full plan. **All of this work lives on the `modernisation` branch, not `main`** — the default branch you'd get from a plain `git clone` doesn't have it yet.
 
 If you already have this repo cloned, switch to that branch rather than cloning again (cloning into an existing checkout creates a confusing nested copy):
 ```
 git fetch origin
-git checkout feature/split-clemreg-core
+git checkout modernisation
 ```
 Otherwise, clone it directly onto that branch:
 ```
-git clone -b feature/split-clemreg-core https://github.com/martlj/napari-clemreg.git
+git clone -b modernisation https://github.com/martlj/napari-clemreg.git
 cd napari-clemreg
 ```
 
