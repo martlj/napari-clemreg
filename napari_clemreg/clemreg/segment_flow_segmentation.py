@@ -64,12 +64,38 @@ def _build_subprocess_env() -> dict:
     prefixes. Left alone if the caller already set JAVA_HOME, or if no
     such install is found -- guessing further would risk pointing at a
     path that doesn't exist.
+
+    VIRTUAL_ENV / venv's own bin/ on PATH: this is what actually broke
+    every real setupModel run (previously misdiagnosed as a concurrency
+    race -- serializing the pipeline via executor.queueSize didn't fix
+    it, which is what led to finding this). `uv run` (and a plain venv
+    activation) prepends the venv's bin/ to PATH and sets VIRTUAL_ENV,
+    *without* deactivating an already-active conda env. Confirmed
+    directly, step by step: with both active at once (VIRTUAL_ENV set,
+    CONDA_SHLVL=1), sourcing conda's own activation script for a
+    completely different, unrelated env runs successfully and changes
+    nothing about the error -- `which python` before and after is
+    identical, still the venv's own python -- because conda's activation
+    script has no knowledge of the venv's bin/ entry and never removes
+    it, so it keeps winning over whatever conda env conda just
+    "activated". Nextflow's own per-process conda activation (used by
+    setupModel to reach its isolated aiod_registry install) hits exactly
+    this. Strip VIRTUAL_ENV and its bin/ from PATH so Nextflow's child
+    processes get a clean PATH to manage their own conda environments,
+    unaffected by whatever Python environment launched napari itself.
     """
     import os
     import platform
 
     env = os.environ.copy()
     env.setdefault("NXF_VER", "25.04.7")
+
+    virtual_env = env.pop("VIRTUAL_ENV", None)
+    if virtual_env:
+        venv_bin = str(Path(virtual_env) / "bin")
+        env["PATH"] = os.pathsep.join(
+            p for p in env.get("PATH", "").split(os.pathsep) if p != venv_bin
+        )
 
     if platform.system() == "Darwin" and "JAVA_HOME" not in os.environ:
         for homebrew_prefix in ("/opt/homebrew/opt", "/usr/local/opt"):
@@ -213,21 +239,15 @@ def segment_flow_em_segmentation(
             "nextflow", "run", SEGMENT_FLOW_REPO,
             "-r", SEGMENT_FLOW_REVISION,
             "-profile", profile,
-            # Forces every task to run one at a time instead of Nextflow's
-            # normal per-process-name parallelism (process.maxForks limits
-            # concurrency *within* one process name, not across different
-            # ones -- confirmed directly it does NOT prevent this).
-            # setupModel and computeImageIds are otherwise submitted only
-            # milliseconds apart (confirmed directly: 7ms in one real run),
-            # both independently running `conda activate` at nearly the
-            # same instant -- confirmed directly this collision is what
-            # breaks setupModel's env activation (it reliably fails when
-            # racing, reliably succeeds run alone), not a broken/missing
-            # aiod_registry install (checked directly: present and
-            # importable in the exact cached env). Costs some wall-clock
-            # time (no more parallel stages) in exchange for not failing
-            # close to 100% of the time on this machine.
-            "-executor.queueSize", "1",
+            # No forced serialization here (see git history for an
+            # executor.queueSize=1 attempt that was reverted): the real
+            # cause turned out to be _build_subprocess_env() not
+            # stripping a leftover VIRTUAL_ENV/venv-bin PATH entry (see
+            # its docstring), not concurrent task submission. That
+            # serialization "worked" in earlier testing purely because
+            # those tests happened not to go through `uv run` -- it
+            # never fixed the actual bug, and cost real parallelism
+            # (e.g. runModel across substacks) for no reason.
             "--img_dir", str(csv_path),
             "--model", "empanada",
             "--model_type", model_type,
@@ -250,37 +270,18 @@ def segment_flow_em_segmentation(
             "failure from an ERROR block partway through.",
             flush=True,
         )
-        # setupModel and computeImageIds are submitted by Nextflow just
-        # milliseconds apart (confirmed directly from a real run's
-        # .nextflow.log: 15:21:23.110 vs 15:21:23.117) -- genuinely
-        # concurrent, near-simultaneous `conda activate`/`conda info
-        # --json` invocations, which conda's own activation mechanism is
-        # not safe against racing. Confirmed directly that this is a race
-        # and not a real misconfiguration: the exact cached conda env
-        # setupModel needs was checked directly and does have
-        # aiod_registry correctly installed, and a manual, sequential
-        # (non-concurrent) run of the identical activation command always
-        # succeeds -- only the real, concurrently-submitted case has been
-        # seen to fail this way, intermittently. Retrying the whole run is
-        # cheap (the env/model checkpoint are already cached) and safe
-        # (idempotent), so retry a bounded number of times specifically
-        # for this narrow, recognisable failure signature -- not for
-        # failures in general, which should still surface immediately.
-        max_attempts = 3
-        for attempt in range(1, max_attempts + 1):
-            returncode, output = _run_nextflow(cmd, cwd=tmpdir, env=_build_subprocess_env())
-            if returncode == 0:
-                break
-            if attempt < max_attempts and "setupModel" in output and "ModuleNotFoundError" in output:
-                print(
-                    f"Segment-Flow attempt {attempt}/{max_attempts} hit the known "
-                    "transient conda-activation race between concurrently-submitted "
-                    "Nextflow tasks (setupModel vs. computeImageIds) -- retrying...",
-                    flush=True,
-                )
-                time.sleep(2)
-                continue
-            break
+        # A previous version of this code retried on a "setupModel +
+        # ModuleNotFoundError" signature, believing it was a transient
+        # race between concurrently-submitted Nextflow tasks. Confirmed
+        # directly that diagnosis was wrong: the real cause (see
+        # _build_subprocess_env()'s docstring -- a leftover venv bin/ on
+        # PATH shadowing the conda env Nextflow activates) is
+        # deterministic, not transient -- retrying 3 times against it
+        # failed identically all 3 times, live. No retry here now that
+        # the actual cause is fixed at the source; a real failure should
+        # surface immediately rather than being masked behind a pointless
+        # wait.
+        returncode, output = _run_nextflow(cmd, cwd=tmpdir, env=_build_subprocess_env())
 
         # .nextflow.log lands in cwd (tmpdir), which is deleted with the
         # `with` block above -- so without this, the one file that would
