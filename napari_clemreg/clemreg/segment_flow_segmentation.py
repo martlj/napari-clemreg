@@ -18,6 +18,7 @@ from __future__ import annotations
 import shutil
 import subprocess
 import tempfile
+import time
 from pathlib import Path
 
 import numpy as np
@@ -224,12 +225,36 @@ def segment_flow_em_segmentation(
             f"Running Segment-Flow EM segmentation (model_type={model_type!r}, "
             f"task={task!r})... this shells out to a real Nextflow pipeline and "
             "can take a while, especially on first run against a given "
-            "root_dir while the model environment/checkpoint downloads.",
+            "root_dir while the model environment/checkpoint downloads. Note: "
+            "Nextflow may print an 'ERROR ~' block for an individual failed "
+            "process attempt (e.g. a transient conda-environment-setup issue) "
+            "and still go on to complete the run successfully -- confirmed "
+            "directly. That block alone isn't a reliable failure signal; this "
+            "function only raises once Nextflow's own final exit code says the "
+            "whole run failed, so let it keep running rather than assuming "
+            "failure from an ERROR block partway through.",
             flush=True,
         )
         returncode, output = _run_nextflow(cmd, cwd=tmpdir, env=_build_subprocess_env())
+
+        # .nextflow.log lands in cwd (tmpdir), which is deleted with the
+        # `with` block above -- so without this, the one file that would
+        # help debug exactly this kind of transient mid-run error is gone
+        # before anyone can look at it. Keep it on failure, when it's
+        # actually needed; skip on success to avoid piling up clutter.
+        log_path = tmpdir / ".nextflow.log"
+        saved_log_path = None
+        if returncode != 0 and log_path.exists():
+            log_dir = root_dir / "logs"
+            log_dir.mkdir(parents=True, exist_ok=True)
+            saved_log_path = log_dir / f"nextflow_{time.strftime('%Y%m%d_%H%M%S')}.log"
+            shutil.copy(log_path, saved_log_path)
+
         if returncode != 0:
-            raise SegmentFlowRunError(f"Segment-Flow failed (exit {returncode}):\n{output}")
+            log_note = f"\n\nFull Nextflow log saved to {saved_log_path}" if saved_log_path else ""
+            raise SegmentFlowRunError(
+                f"Segment-Flow failed (exit {returncode}):\n{output}{log_note}"
+            )
         print("Segment-Flow EM segmentation finished.", flush=True)
 
         # combineStacks publishes the result as
@@ -244,6 +269,6 @@ def segment_flow_em_segmentation(
         if not matches:
             raise SegmentFlowRunError(
                 f"Segment-Flow reported success but no output mask was found in "
-                f"{mask_dir} (looked for *_all.tiff). stdout:\n{result.stdout}"
+                f"{mask_dir} (looked for *_all.tiff). Nextflow output:\n{output}"
             )
         return tifffile.imread(matches[-1])
