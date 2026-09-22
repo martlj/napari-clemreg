@@ -17,12 +17,18 @@ from napari_clemreg.clemreg.segment_flow_segmentation import (
     SEGMENT_FLOW_REPO,
     SEGMENT_FLOW_REVISION,
     SegmentFlowNotAvailable,
+    _build_model_config,
     _build_subprocess_env,
     _check_prerequisites,
     segment_flow_em_segmentation,
 )
 
 _HAS_NEXTFLOW = shutil.which("nextflow") is not None and shutil.which("conda") is not None
+try:
+    import aiod_registry  # noqa: F401
+    _HAS_AIOD_REGISTRY = True
+except ImportError:
+    _HAS_AIOD_REGISTRY = False
 
 
 def test_segment_flow_revision_is_pinned_not_default_branch():
@@ -48,6 +54,31 @@ def test_segment_flow_em_segmentation_raises_clearly_without_prerequisites():
     with patch("shutil.which", return_value=None):
         with pytest.raises(SegmentFlowNotAvailable):
             segment_flow_em_segmentation(np.zeros((2, 2, 2), dtype=np.uint8))
+
+
+@pytest.mark.skipif(not _HAS_AIOD_REGISTRY, reason="needs the aiod_registry package")
+def test_build_model_config_patches_only_conf_threshold(tmp_path):
+    """aiod_registry's own default conf_threshold for MitoNet v1 (0.5) is
+    notably stricter than empanada-dl's own bundled config (0.3, see
+    empanada_configs/MitoNet_V1.yaml) -- confirmed directly by generating
+    and reading Segment-Flow's actual default config, and a real
+    production run against a real EM volume (known, via the bundled
+    empanada-dl path, to contain mitochondria) found none at all via
+    Segment-Flow. This patches just that one field onto Segment-Flow's
+    own generated default (not a hand-written config, which would risk
+    an incomplete/wrong schema).
+    """
+    config_path = _build_model_config("MitoNet v1", "mito", 0.3, tmp_path)
+
+    import yaml
+    config = yaml.safe_load(config_path.read_text())
+
+    assert config["conf_threshold"] == 0.3
+    # Confirm this really did come from the registry's own generator, not
+    # a hand-written stand-in -- these are AIoD's field names, not ours.
+    assert config["plane"] == "XY"
+    assert config["center_threshold"] == 0.1
+    assert config["min_distance"] == 3
 
 
 def test_build_subprocess_env_strips_venv_from_path():

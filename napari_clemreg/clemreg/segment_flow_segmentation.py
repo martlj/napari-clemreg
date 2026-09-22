@@ -3,8 +3,10 @@ alternative to the bundled empanada-dl path -- which is currently
 blocked entirely on Python 3.11 (empanada-dl hard-pins numpy==1.22,
 see issue #5). Shells out to `nextflow run FrancisCrickInstitute/Segment-Flow`
 as a subprocess; the model itself runs in Segment-Flow's own isolated
-per-model conda env, never in this process, so it needs no napari-clemreg
-dependency changes at all.
+per-model conda env, never in this process -- this process only needs
+the lightweight aiod_utils/aiod_registry/pyyaml packages (no heavy ML
+dependencies) to build the image manifest CSV and to generate/patch the
+model config ourselves (see _build_model_config's docstring for why).
 
 Requires Nextflow and Conda on PATH. Verified end-to-end, not just by
 inspection: `segment_flow_em_segmentation` was run directly against a
@@ -162,6 +164,52 @@ def _check_prerequisites() -> None:
             "(`pip install aiod_utils`) to build the image manifest CSV in the "
             "format Segment-Flow expects."
         ) from e
+    try:
+        import aiod_registry  # noqa: F401
+        import yaml  # noqa: F401
+    except ImportError as e:
+        raise SegmentFlowNotAvailable(
+            "Segment-Flow EM segmentation needs the `aiod_registry` and `pyyaml` "
+            "packages (`pip install aiod_registry pyyaml`) to generate and patch "
+            "the model config ourselves (see _build_model_config's docstring)."
+        ) from e
+
+
+def _build_model_config(model_type: str, task: str, conf_threshold: float, dest_dir: Path) -> Path:
+    """Generate Segment-Flow's own default config for this model/task via
+    aiod_registry (the exact same call setupModel itself makes, so the
+    schema is guaranteed correct -- confirmed directly, not guessed), then
+    patch conf_threshold and write it out for --model_config.
+
+    Why this exists: aiod_registry's own manifest default for MitoNet v1's
+    conf_threshold is 0.5, notably stricter than empanada-dl's own bundled
+    config (0.3, see empanada_configs/MitoNet_V1.yaml) -- confirmed
+    directly by generating and reading Segment-Flow's actual default
+    config. Everything else lines up (same checkpoint URL, same
+    normalization mean/std). A real production run against a real EM
+    volume (known, via the bundled empanada-dl path, to contain
+    mitochondria) found none at all via Segment-Flow -- plausibly, though
+    not certainly, explained by this stricter threshold.
+
+    Segment-Flow's --model_config option (routed through setupModel's
+    --user-config) *replaces* the whole config rather than overriding one
+    field (confirmed directly by reading setup_model.py) -- so this
+    generates the full default first and only then patches the one field,
+    rather than hand-writing a config from scratch and risking an
+    incomplete/wrong schema.
+    """
+    from aiod_registry import load_manifests
+    from aiod_registry.utils import generate_default_config
+    import yaml
+
+    manifests = load_manifests()
+    default_yaml = generate_default_config(manifests["empanada"], model_type, task)
+    config = yaml.safe_load(default_yaml)
+    config["conf_threshold"] = conf_threshold
+
+    config_path = dest_dir / "model_config.yml"
+    config_path.write_text(yaml.safe_dump(config), encoding="utf-8")
+    return config_path
 
 
 def segment_flow_em_segmentation(
@@ -170,6 +218,7 @@ def segment_flow_em_segmentation(
     task: str = "mito",
     profile: str = "local",
     root_dir: str | Path | None = None,
+    conf_threshold: float = 0.3,
 ) -> np.ndarray:
     """Run EM segmentation via Crick's AI-on-Demand Segment-Flow pipeline.
 
@@ -193,6 +242,11 @@ def segment_flow_em_segmentation(
         Defaults to ``~/.nextflow/aiod``, matching aiod_napari's own
         default, so a cache built via aiod_napari or a previous call is
         reused rather than duplicated.
+    conf_threshold : float
+        Segmentation confidence threshold passed to the model. Defaults
+        to 0.3 to match empanada-dl's own bundled config (see
+        _build_model_config's docstring for why this differs from
+        aiod_registry's own default of 0.5).
 
     Returns
     -------
@@ -235,6 +289,8 @@ def segment_flow_em_segmentation(
             index=False,
         )
 
+        model_config_path = _build_model_config(model_type, task, conf_threshold, tmpdir)
+
         cmd = [
             "nextflow", "run", SEGMENT_FLOW_REPO,
             "-r", SEGMENT_FLOW_REVISION,
@@ -252,6 +308,7 @@ def segment_flow_em_segmentation(
             "--model", "empanada",
             "--model_type", model_type,
             "--task", task,
+            "--model_config", str(model_config_path),
             "--output_format", "tiff",
             "--root_dir", str(root_dir),
         ]
