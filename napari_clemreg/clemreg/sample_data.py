@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import importlib.resources
 
-import numpy as np
 import pooch
 import tifffile
 
@@ -34,7 +33,10 @@ def make_sample_data():
     print('Loading FM...')
     fm = tifffile.imread(POOCH.fetch('EM04468_2_63x_pos8T_LM_raw.tif', progressbar=True))
 
-    fm = np.moveaxis(fm, -1, 0)
+    # tifffile already parses this ImageJ hyperstack's axes as (Z, C, Y, X) --
+    # confirmed directly (raw shape (28, 4, 1226, 1226), matching the
+    # ImageDescription's slices=28/channels=4). No axis reordering is needed;
+    # index channel on axis 1 and the z-range on axis 0.
 
     fm_metadata = {'ImageDescription': 'ImageJ=1.53t\nimages=112\nchannels=4\nslices=28\nhyperstack=true\nmode=grayscale\nunit=micron\nspacing=0.13\nloop=false\nmin=0.0\nmax=65535.0\n',
                    'XResolution': 28.349506,
@@ -44,10 +46,10 @@ def make_sample_data():
                    'YResolution': 50}
 
     return [(em, {'name': 'EM', 'metadata': em_metadata}),
-            (fm[0, 7:], {'blending': 'additive', 'colormap': 'green', 'name': 'FM_TGN46', 'metadata': fm_metadata}),
-            (fm[1, 7:], {'blending': 'additive', 'colormap': 'magenta', 'name': 'FM_Lysotracker', 'metadata': fm_metadata}),
-            (fm[2, 7:], {'blending': 'additive', 'colormap': 'cyan', 'name': 'FM_Mitotracker', 'metadata': fm_metadata}),
-            (fm[3, 7:], {'blending': 'additive', 'colormap': 'blue', 'name': 'FM_Hoechst', 'metadata': fm_metadata})
+            (fm[7:, 0], {'blending': 'additive', 'colormap': 'green', 'name': 'FM_TGN46', 'metadata': fm_metadata}),
+            (fm[7:, 1], {'blending': 'additive', 'colormap': 'magenta', 'name': 'FM_Lysotracker', 'metadata': fm_metadata}),
+            (fm[7:, 2], {'blending': 'additive', 'colormap': 'cyan', 'name': 'FM_Mitotracker', 'metadata': fm_metadata}),
+            (fm[7:, 3], {'blending': 'additive', 'colormap': 'blue', 'name': 'FM_Hoechst', 'metadata': fm_metadata})
             ]
 
 
