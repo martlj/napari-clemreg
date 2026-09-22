@@ -1,12 +1,16 @@
 """Segment-Flow EM segmentation integration (modernisation plan §4a,
-issue #5 tighter-integration option). Only what's testable without a
-real Nextflow/Segment-Flow run: prerequisite checking and the revision
-pin. The actual pipeline invocation is exercised manually against a
-real Nextflow install -- see the module docstring for the findings from
-doing that.
+issue #5 tighter-integration option).
+
+Most of this is testable without Nextflow: prerequisite checking and the
+revision pin. The real end-to-end test needs an actual Nextflow + Conda
+install (and, on some systems, a specific JDK -- see the module
+docstring), so it's marked slow and additionally skipped outright if
+those tools aren't on PATH, rather than failing CI (which has neither).
 """
+import shutil
 from unittest.mock import patch
 
+import numpy as np
 import pytest
 
 from napari_clemreg.clemreg.segment_flow_segmentation import (
@@ -16,6 +20,8 @@ from napari_clemreg.clemreg.segment_flow_segmentation import (
     _check_prerequisites,
     segment_flow_em_segmentation,
 )
+
+_HAS_NEXTFLOW = shutil.which("nextflow") is not None and shutil.which("conda") is not None
 
 
 def test_segment_flow_revision_is_pinned_not_default_branch():
@@ -38,8 +44,21 @@ def test_check_prerequisites_passes_when_tools_present():
 
 
 def test_segment_flow_em_segmentation_raises_clearly_without_prerequisites():
-    import numpy as np
-
     with patch("shutil.which", return_value=None):
         with pytest.raises(SegmentFlowNotAvailable):
             segment_flow_em_segmentation(np.zeros((2, 2, 2), dtype=np.uint8))
+
+
+@pytest.mark.slow
+@pytest.mark.skipif(not _HAS_NEXTFLOW, reason="needs a real Nextflow + Conda install")
+def test_segment_flow_em_segmentation_real_run(tmp_path):
+    """Runs the actual pipeline against synthetic noise (no real
+    mitochondria expected -- this checks the round trip works and
+    returns a correctly-shaped mask, not segmentation quality).
+    """
+    rng = np.random.default_rng(0)
+    volume = rng.integers(0, 255, size=(8, 64, 64), dtype=np.uint8)
+
+    mask = segment_flow_em_segmentation(volume, root_dir=tmp_path)
+
+    assert mask.shape == volume.shape

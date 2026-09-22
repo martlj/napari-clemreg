@@ -6,9 +6,12 @@ as a subprocess; the model itself runs in Segment-Flow's own isolated
 per-model conda env, never in this process, so it needs no napari-clemreg
 dependency changes at all.
 
-Requires Nextflow and Conda on PATH. Verified working end-to-end against
-a small synthetic test volume while writing this module -- see the
-notes below for the real, non-obvious gotchas that were found doing so.
+Requires Nextflow and Conda on PATH. Verified end-to-end, not just by
+inspection: `segment_flow_em_segmentation` was run directly against a
+small synthetic test volume, through a real Nextflow/Segment-Flow
+install, producing a correctly-shaped mask back. See the inline notes
+below for the real, non-obvious gotchas hit getting there -- none of
+them were guessed.
 """
 from __future__ import annotations
 
@@ -97,6 +100,15 @@ def segment_flow_em_segmentation(
     """
     _check_prerequisites()
 
+    # Match Segment-Flow's own default (nextflow.config:
+    # root_dir = "${System.getProperty('user.home')}/.nextflow/aiod") so a
+    # cache built by a previous call, or by aiod_napari itself, is reused
+    # rather than duplicated -- and so we know where to look for the output
+    # below regardless of whether the caller passed root_dir explicitly.
+    if root_dir is None:
+        root_dir = Path.home() / ".nextflow" / "aiod"
+    root_dir = Path(root_dir)
+
     # aiod_utils.io.image_paths_to_csv builds the image-manifest CSV in the
     # exact format Segment-Flow expects (img_path, num_slices, height, width,
     # channels, dtype) -- a hand-written CSV with just img_path fails with
@@ -131,9 +143,8 @@ def segment_flow_em_segmentation(
             "--model_type", model_type,
             "--task", task,
             "--output_format", "tiff",
+            "--root_dir", str(root_dir),
         ]
-        if root_dir is not None:
-            cmd += ["--root_dir", str(root_dir)]
 
         result = subprocess.run(cmd, cwd=tmpdir, capture_output=True, text=True)
         if result.returncode != 0:
@@ -142,13 +153,18 @@ def segment_flow_em_segmentation(
                 f"{result.stdout}\n{result.stderr}"
             )
 
-        # TODO: locate and read back the output mask. Confirmed the mask is
-        # published under <root_dir>/aiod_cache/... via Segment-Flow's own
-        # combineStacks `publishDir`, but the exact subpath depends on the
-        # resolved param hash / mask directory naming (see nxf.py's
-        # mask_dir_path / get_mask_name) -- pin this down against a real
-        # completed run rather than guess, then finish this function.
-        raise NotImplementedError(
-            "Segment-Flow ran, but output-mask discovery is not wired up yet -- "
-            "see the TODO above. In progress on branch 5-aiod-integration."
-        )
+        # combineStacks publishes the result as
+        # <root_dir>/aiod_cache/<model>/<model_type>_masks/<image-id>_masks_<hash>_all.<format>
+        # -- confirmed against a real run. The <hash> is a resolved-param
+        # hash we don't compute ourselves, so glob for it rather than
+        # predict the exact filename (robust to that hash's computation
+        # changing upstream, and there's exactly one match for a
+        # single-image run).
+        mask_dir = root_dir / "aiod_cache" / "empanada" / f"{model_type}_masks"
+        matches = sorted(mask_dir.glob("*_all.tiff"))
+        if not matches:
+            raise SegmentFlowRunError(
+                f"Segment-Flow reported success but no output mask was found in "
+                f"{mask_dir} (looked for *_all.tiff). stdout:\n{result.stdout}"
+            )
+        return tifffile.imread(matches[-1])
