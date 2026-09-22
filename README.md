@@ -80,7 +80,7 @@ Using [`uv`](https://docs.astral.sh/uv/) (recommended — fast, and installs the
 
 ```
 uv venv --python 3.11
-uv pip install typing_extensions setuptools packaging pint numpy scipy "scikit-image>=0.22" "magicgui>=0.8.3" "napari>=0.6" open3d probreg transforms3d tqdm h5py matplotlib imageio tifffile torch connected-components-3d pyqt5
+uv pip install typing_extensions setuptools packaging pint numpy scipy "scikit-image>=0.22" "magicgui>=0.8.3" "napari>=0.6" open3d probreg transforms3d tqdm h5py matplotlib imageio tifffile torch connected-components-3d pyqt6
 uv pip install -e . --no-deps
 uv run napari
 ```
@@ -90,7 +90,7 @@ Or with plain `pip` in a conda environment (needs an existing Python 3.11+ inter
 ```
 conda create -n clemreg_dev python=3.11
 conda activate clemreg_dev
-pip install typing_extensions setuptools packaging pint numpy scipy "scikit-image>=0.22" "magicgui>=0.8.3" "napari>=0.6" open3d probreg transforms3d tqdm h5py matplotlib imageio tifffile torch connected-components-3d pyqt5
+pip install typing_extensions setuptools packaging pint numpy scipy "scikit-image>=0.22" "magicgui>=0.8.3" "napari>=0.6" open3d probreg transforms3d tqdm h5py matplotlib imageio tifffile torch connected-components-3d pyqt6
 pip install -e . --no-deps
 napari
 ```
