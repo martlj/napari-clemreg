@@ -16,10 +16,13 @@ to sync from upstream later, branches follow a simple structure:
   not by committing to it directly once an issue has its own branch.
 - **One branch per issue or theme**, branched off `modernisation`, named
   `<issue-number>-<short-slug>` (e.g. `6-mobie-export`, `12-em-mask-sample-data`).
-  Open a PR into `modernisation` when the work is ready, even if it's a
-  self-review/self-merge — a real PR gives a diff boundary, a description, CI
-  results, and a revert point that a growing pile of commits on one branch
-  doesn't.
+  Open a PR into `modernisation` when the work is ready — a real PR gives a
+  diff boundary, a description, CI results, and a revert point that a growing
+  pile of commits on one branch doesn't.
+
+**When Claude Code is doing the work**: it opens the branch, commits, pushes,
+and opens the PR, but does **not** merge it — merging is left to a human
+review, on request (2026-09-22).
 
 Rationale for the split: `modernisation` started as a single branch named for
 one specific task (splitting out the `clemreg` core, §6) and accumulated
@@ -33,8 +36,9 @@ in reviewable chunks. Renamed and restructured 2026-09-22.
 2. `git checkout modernisation && git pull`
 3. `git checkout -b <issue-number>-<short-slug>`
 4. Do the work, commit (see commit message convention below), push.
-5. Open a PR into `modernisation`. Merge once CI is green.
-6. Delete the branch after merging.
+5. Open a PR into `modernisation`.
+6. A human reviews and merges once CI is green (Claude Code opens PRs but does not merge them — see above).
+7. Delete the branch after merging.
 
 When `modernisation` itself is ready to go back upstream (or once the
 upstream owner is back to review), it becomes a single PR from
