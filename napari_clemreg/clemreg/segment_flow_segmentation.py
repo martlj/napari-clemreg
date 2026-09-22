@@ -84,6 +84,36 @@ def _build_subprocess_env() -> dict:
     return env
 
 
+def _run_nextflow(cmd: list, cwd: Path, env: dict) -> tuple[int, str]:
+    """Run the Nextflow subprocess, printing its output line-by-line as it
+    arrives instead of swallowing it until the process exits.
+
+    Nextflow's own output is what previously gave visible progress in the
+    terminal for the (now-optional) empanada-dl path's tqdm bars; a plain
+    `subprocess.run(..., capture_output=True)` here produced zero terminal
+    feedback for the entire run (confirmed directly: nothing printed at all
+    while a real run was in progress) -- unhelpful for a pipeline that can
+    run for minutes, especially on a first call against a given root_dir
+    while a model environment/checkpoint downloads. Still returns the full
+    output so a failure can be reported with complete context.
+    """
+    process = subprocess.Popen(
+        cmd, cwd=cwd, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+        text=True, bufsize=1,
+    )
+    lines = []
+    for line in process.stdout:
+        # flush=True: stdout is only line-buffered by default when
+        # attached to a real terminal -- when napari's own output is
+        # redirected to a log file (or, as found while testing this,
+        # to any non-TTY pipe), Python falls back to block buffering,
+        # which would silently defeat the whole point of streaming here.
+        print(line, end="", flush=True)
+        lines.append(line)
+    process.wait()
+    return process.returncode, "".join(lines)
+
+
 def _check_prerequisites() -> None:
     missing = [tool for tool in ("nextflow", "conda") if shutil.which(tool) is None]
     if missing:
@@ -190,14 +220,17 @@ def segment_flow_em_segmentation(
             "--root_dir", str(root_dir),
         ]
 
-        result = subprocess.run(
-            cmd, cwd=tmpdir, capture_output=True, text=True, env=_build_subprocess_env()
+        print(
+            f"Running Segment-Flow EM segmentation (model_type={model_type!r}, "
+            f"task={task!r})... this shells out to a real Nextflow pipeline and "
+            "can take a while, especially on first run against a given "
+            "root_dir while the model environment/checkpoint downloads.",
+            flush=True,
         )
-        if result.returncode != 0:
-            raise SegmentFlowRunError(
-                f"Segment-Flow failed (exit {result.returncode}):\n"
-                f"{result.stdout}\n{result.stderr}"
-            )
+        returncode, output = _run_nextflow(cmd, cwd=tmpdir, env=_build_subprocess_env())
+        if returncode != 0:
+            raise SegmentFlowRunError(f"Segment-Flow failed (exit {returncode}):\n{output}")
+        print("Segment-Flow EM segmentation finished.", flush=True)
 
         # combineStacks publishes the result as
         # <root_dir>/aiod_cache/<model>/<model_type>_masks/<image-id>_masks_<hash>_all.<format>

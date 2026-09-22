@@ -60,9 +60,20 @@ def run_fixed_segmentation(Fixed_Image,
                            em_segmentation_backend='empanada (local)'
 ):
     if em_segmentation_backend == 'AI-on-Demand (Segment-Flow)':
+        from napari.utils.notifications import show_info
         from ..clemreg.segment_flow_segmentation import segment_flow_em_segmentation
 
+        # Segment-Flow shells out to Nextflow and can run for minutes with
+        # no other GUI feedback (it prints progress to the terminal, but
+        # that's easy to miss if you're only watching the napari window) --
+        # show_info() is thread-safe to call from this background worker.
+        show_info(
+            'Running EM segmentation via AI-on-Demand (Segment-Flow)... this '
+            'can take a while, especially on first run. Progress is printed '
+            'to the terminal.'
+        )
         seg_volume = segment_flow_em_segmentation(Fixed_Image.data)
+        show_info('EM segmentation via Segment-Flow finished.')
     else:
         from ..clemreg.empanada_segmentation import empanada_segmentation
 
