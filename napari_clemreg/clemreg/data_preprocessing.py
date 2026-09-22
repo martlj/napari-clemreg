@@ -5,7 +5,6 @@ from ._napari_compat import get_linked_layers
 from scipy import ndimage
 import numpy as np
 import time
-import copy
 
 def get_pixelsize(metadata: dict):
     """ Parse pixel sizes from image metadata
@@ -156,27 +155,31 @@ def return_isotropic_image_list(input_image: Image,
     if len(get_linked_layers(input_image)) > 0:
         images = get_linked_layers(input_image)
         images.add(input_image)
-        for image in images:
-            print(f'Resampling {image.name}')
-            target_image_iso = copy.deepcopy(image)
-            image_iso = _make_isotropic(image.data,
-                                        pxlsz_lm,
-                                        pxlsz_em,
-                                        inverse=kwargs.get('inverse', False),
-                                        ref_frame=kwargs.get('ref_frame', 'LM'),
-                                        order=kwargs.get('order', 0))
-
-            target_image_iso.data = image_iso
-            image_iso_list.append(target_image_iso)
     else:
-        target_image_iso = copy.deepcopy(input_image)
-        image_iso = _make_isotropic(input_image.data,
+        images = [input_image]
+
+    for image in images:
+        print(f'Resampling {image.name}')
+        image_iso = _make_isotropic(image.data,
                                     pxlsz_lm,
                                     pxlsz_em,
                                     inverse=kwargs.get('inverse', False),
                                     ref_frame=kwargs.get('ref_frame', 'LM'),
                                     order=kwargs.get('order', 0))
-        target_image_iso.data = image_iso
+
+        # A plain copy.deepcopy(image) here (as this used to do) crashes
+        # on a real, viewer-attached layer -- confirmed directly: it
+        # carries live Qt/vispy canvas state (down to a QFont, several
+        # frames deep through overlay callbacks) that can't be pickled.
+        # Only .data (replaced below anyway), .name, .colormap and
+        # .blending are ever read from these downstream (confirmed by
+        # checking every call site) -- so build a fresh, un-attached
+        # Image layer with just those instead of deep-copying the whole
+        # live object.
+        target_image_iso = Image(image_iso,
+                                 name=image.name,
+                                 colormap=image.colormap,
+                                 blending=image.blending)
         image_iso_list.append(target_image_iso)
 
     return image_iso_list
