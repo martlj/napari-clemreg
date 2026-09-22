@@ -174,6 +174,8 @@ The bundled `Electron Microscopy (EM) Segmentation` widget uses MitoNet via `emp
 
 See AIoD's [Inference widget documentation](https://franciscrickinstitute.github.io/aiod_docs/sections/front_ends/napari_plugin/inference/) for the full walkthrough.
 
+**Just want to try the pipeline without a GPU or setting up AIoD?** `File → Open Sample → napari-clemreg → EM Mask (precomputed, no GPU needed)` loads a precomputed EM segmentation matching the EM volume in the main sample data, so you can go straight to the `Point Cloud Sampling` widget without running any EM segmentation step at all.
+
 ### Registering Multiple LM Channels
 One can register multiple LM channels at once by doing the following.
 

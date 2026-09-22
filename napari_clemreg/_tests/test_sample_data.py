@@ -1,15 +1,17 @@
-"""Sample-data caching (modernisation plan §8.1, issue #11).
+"""Sample-data caching (modernisation plan §8.1, issue #11) and the
+bundled EM mask sample data (§8.2, issue #12).
 
-The fast test below just checks the pooch registry is well-formed --
-no network. The end-to-end test actually downloads/caches the real
-~275MB + ~337MB Zenodo files, so it's marked slow and skipped unless
-`pytest --run-slow` is passed.
+The fast tests below just check the pooch registry is well-formed and
+the bundled mask loads -- no network. The Zenodo end-to-end test
+actually downloads/caches the real ~275MB + ~337MB files, so it's
+marked slow and skipped unless `pytest --run-slow` is passed.
 """
 import re
 
+import numpy as np
 import pytest
 
-from napari_clemreg.clemreg.sample_data import POOCH, make_sample_data
+from napari_clemreg.clemreg.sample_data import POOCH, make_em_mask_sample_data, make_sample_data
 
 SHA256_HEX = re.compile(r"^sha256:[0-9a-f]{64}$")
 
@@ -20,6 +22,20 @@ def test_pooch_registry_is_well_formed():
     for fname, hash_str in POOCH.registry.items():
         assert fname.endswith(".tif")
         assert SHA256_HEX.match(hash_str), f"{fname} hash doesn't look like sha256: {hash_str!r}"
+
+
+def test_make_em_mask_sample_data():
+    result = make_em_mask_sample_data()
+
+    assert len(result) == 1
+    mask, kwargs, layer_type = result[0]
+    assert layer_type == 'labels'
+    assert kwargs['name'] == 'EM_mask'
+    assert mask.shape == (106, 1750, 1484)
+    assert np.issubdtype(mask.dtype, np.integer)
+    # Same instance-mask characteristics confirmed by direct inspection:
+    # background (0) plus 9 distinct instance labels.
+    assert len(np.unique(mask)) == 10
 
 
 @pytest.mark.slow

@@ -23,6 +23,9 @@ contributions:
   - id: napari-clemreg.sample_data
     title: Sample Benchmark Data
     python_name: napari_clemreg.clemreg.sample_data:make_sample_data
+  - id: napari-clemreg.em_mask_sample_data
+    title: EM Mask Sample Data
+    python_name: napari_clemreg.clemreg.sample_data:make_em_mask_sample_data
   readers:
   - command: napari-clemreg.get_reader
     filename_patterns:
@@ -33,6 +36,9 @@ contributions:
   - command: napari-clemreg.sample_data
     display_name: Sample Benchmark Data
     key: benchmark_dataset.1
+  - command: napari-clemreg.em_mask_sample_data
+    display_name: EM Mask (precomputed, no GPU needed)
+    key: em_mask.1
   widgets:
   - command: napari-clemreg.make_run_registration
     display_name: Run registration
