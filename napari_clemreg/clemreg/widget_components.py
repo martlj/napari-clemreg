@@ -57,9 +57,9 @@ Fixed segmentation
 """
 def run_fixed_segmentation(Fixed_Image,
                            em_seg_axis,
-                           em_segmentation_backend='empanada (local)'
+                           em_segmentation_backend='MitoNet (Segment-Flow)'
 ):
-    if em_segmentation_backend == 'AI-on-Demand (Segment-Flow)':
+    if em_segmentation_backend == 'MitoNet (Segment-Flow)':
         from napari.utils.notifications import show_info
         from ..clemreg.segment_flow_segmentation import segment_flow_em_segmentation
 
@@ -68,7 +68,7 @@ def run_fixed_segmentation(Fixed_Image,
         # that's easy to miss if you're only watching the napari window) --
         # show_info() is thread-safe to call from this background worker.
         show_info(
-            'Running EM segmentation via AI-on-Demand (Segment-Flow)... this '
+            'Running EM segmentation via MitoNet (Segment-Flow)... this '
             'can take a while, especially on first run. Progress is printed '
             'to the terminal.'
         )

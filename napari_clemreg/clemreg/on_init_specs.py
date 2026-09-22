@@ -32,13 +32,25 @@ specs = {
                  'widget_type': 'CheckBox',
                  'value': False},
 
+    # Both choices run the exact same MitoNet model -- only how it's
+    # invoked differs -- so both names lead with "MitoNet" to make that
+    # explicit rather than reading like two different models.
+    #
+    # Default is MitoNet (Segment-Flow), not MitoNet (empanada-dl) --
+    # empanada-dl is unmaintained and its numpy==1.22 pin means the
+    # `empanada` extra currently cannot install at all on Python 3.11
+    # (see issue #5), while Segment-Flow has been verified end-to-end
+    # against real production data (see #5/#16). This is purely about
+    # which one can actually work out of the box today.
     'em_segmentation_backend':{'label': 'EM Segmentation Backend',
                              'widget_type': 'ComboBox',
-                             'choices': ['empanada (local)', 'AI-on-Demand (Segment-Flow)'],
-                             'value': 'empanada (local)',
-                             'tooltip': 'empanada (local) requires empanada-dl (see issue #5). '
-                                        'AI-on-Demand (Segment-Flow) shells out to a Nextflow '
-                                        'pipeline and requires Nextflow and Conda on PATH.'},
+                             'choices': ['MitoNet (Segment-Flow)', 'MitoNet (empanada-dl)'],
+                             'value': 'MitoNet (Segment-Flow)',
+                             'tooltip': 'Both options run the same MitoNet model. '
+                                        'MitoNet (Segment-Flow) shells out to a Nextflow '
+                                        'pipeline and requires Nextflow and Conda on PATH. '
+                                        'MitoNet (empanada-dl) requires the empanada-dl extra '
+                                        '(see issue #5) -- currently uninstallable on Python 3.11.'},
 
     'log_sigma':{'label': 'Sigma',
                'widget_type': 'FloatSpinBox',
