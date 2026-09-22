@@ -5,6 +5,7 @@ from napari.utils.notifications import show_error
 from napari.qt.threading import thread_worker
 
 from ..clemreg.on_init_specs import specs
+from ..clemreg._qt_layout import wrap_in_scroll_area
 
 @magic_factory(layout='vertical', call_button='Segment',
                widget_header={'widget_type': 'Label',
@@ -79,3 +80,18 @@ def fixed_segmentation_widget(viewer: 'napari.viewer.Viewer',
                                      em_segmentation_backend=em_segmentation_backend)
     worker_fixed.returned.connect(_add_data)
     worker_fixed.start()
+
+
+def fixed_segmentation_dock_widget(napari_viewer: 'napari.viewer.Viewer'):
+    """The actual napari-docked widget -- wraps fixed_segmentation_widget()
+    in a QScrollArea so the panel has a bounded height/width, matching
+    AIoD's own napari plugin's approach (verified against its real
+    source). This widget is small (3 fields), so there's no burst-reveal
+    lag to fix here, but the same scroll-bounding is applied for
+    consistency across every widget in this plugin.
+    """
+    # magic_factory's __call__ treats kwargs as widget-option overrides,
+    # not runtime values, so call with no args and let its own
+    # Viewer-typed-parameter auto-injection resolve the current viewer.
+    gui = fixed_segmentation_widget()
+    return wrap_in_scroll_area(gui.native)

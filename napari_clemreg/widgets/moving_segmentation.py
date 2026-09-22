@@ -5,27 +5,22 @@ from napari.utils.notifications import show_error
 from napari.qt.threading import thread_worker
 
 from ..clemreg.on_init_specs import specs
+from ..clemreg._qt_layout import group_into_collapsible, wrap_in_scroll_area
 
 def on_init(widget):
     from ..clemreg.data_preprocessing import get_pixelsize
 
-    custom_z_zom_settings = ['z_zoom']
     filter_segmentation_settings = ['filter_size_lower', 'filter_size_upper']
 
-    standard_settings = ['Moving_Image',
-                         'Mask_ROI',
-                         'log_sigma',
-                         'log_threshold',
-                         'filter_segmentation']
-    advanced_settings = ['z_min',
-                         'z_max',
-                         'filter_size_lower',
-                         'filter_size_upper']
-
-    for x in standard_settings:
-        setattr(getattr(widget, x), 'visible', True)
-    for x in advanced_settings:
+    for x in ['z_min', 'z_max'] + filter_segmentation_settings:
         setattr(getattr(widget, x), 'visible', False)
+
+    # Grouped into its own collapsible section for consistency with the
+    # other widgets in this plugin, even though this one is small enough
+    # that the old flat show/hide wasn't causing the lag/height problems
+    # run_registration.py had -- see the comment there for the full story.
+    group_into_collapsible(widget, 'Size Filter',
+                           ['filter_segmentation', 'filter_size_lower', 'filter_size_upper'])
 
     def change_z_max(input_image: Image):
         if len(input_image.data.shape) == 3:
@@ -196,3 +191,15 @@ def moving_segmentation_widget(viewer: 'napari.viewer.Viewer',
     # worker_moving.finished.connect(_add_data)
 
     worker_moving.start()
+
+
+def moving_segmentation_dock_widget(napari_viewer: 'napari.viewer.Viewer'):
+    """The actual napari-docked widget -- wraps moving_segmentation_widget()
+    in a QScrollArea for a bounded height/width, matching AIoD's own
+    napari plugin's approach (verified against its real source).
+    """
+    # magic_factory's __call__ treats kwargs as widget-option overrides,
+    # not runtime values, so call with no args and let its own
+    # Viewer-typed-parameter auto-injection resolve the current viewer.
+    gui = moving_segmentation_widget()
+    return wrap_in_scroll_area(gui.native)

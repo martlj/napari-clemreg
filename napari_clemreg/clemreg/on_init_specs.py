@@ -28,10 +28,6 @@ specs = {
                     'mode': 'r',
                     'filter': '*.json'},
 
-    'advanced':{'text': 'Parameters custom',
-              'widget_type': 'CheckBox',
-              'value': False},
-
     'em_seg_axis':{'text': 'Prediction Across Three Axis',
                  'widget_type': 'CheckBox',
                  'value': False},

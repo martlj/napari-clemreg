@@ -7,6 +7,7 @@ from napari.utils.notifications import show_error
 import pint
 
 from ..clemreg.on_init_specs import specs
+from ..clemreg._qt_layout import wrap_in_scroll_area
 
 
 def on_init(widget):
@@ -25,6 +26,18 @@ def on_init(widget):
 
     widget.Moving_Points.changed.connect(change_moving_pixelsize)
     widget.Fixed_Points.changed.connect(change_fixed_pixelsize)
+
+    # Same bug as run_registration.py's Moving_Image/Fixed_Image fields:
+    # a layer already selected at construction time never fires its own
+    # `changed` signal, so pixel sizes stayed at their placeholder value
+    # until the user manually reselected a layer. Seed both once here --
+    # guarded on 'pxlsz' being present, since (unlike a `.changed`-driven
+    # selection the user made deliberately) whatever's pre-selected here
+    # could in principle be an unrelated Points layer without it.
+    if widget.Moving_Points.value is not None and 'pxlsz' in widget.Moving_Points.value.metadata:
+        change_moving_pixelsize(widget.Moving_Points.value)
+    if widget.Fixed_Points.value is not None and 'pxlsz' in widget.Fixed_Points.value.metadata:
+        change_fixed_pixelsize(widget.Fixed_Points.value)
 
 
 @magic_factory(widget_init=on_init, layout='vertical',
@@ -183,3 +196,15 @@ def registration_warping_widget(viewer: 'napari.viewer.Viewer',
                                                registration_direction=registration_direction)
     worker_registration.returned.connect(_add_data)
     worker_registration.start()
+
+
+def registration_warping_dock_widget(napari_viewer: 'napari.viewer.Viewer'):
+    """The actual napari-docked widget -- wraps registration_warping_widget()
+    in a QScrollArea for a bounded height/width, matching AIoD's own
+    napari plugin's approach (verified against its real source).
+    """
+    # magic_factory's __call__ treats kwargs as widget-option overrides,
+    # not runtime values, so call with no args and let its own
+    # Viewer-typed-parameter auto-injection resolve the current viewer.
+    gui = registration_warping_widget()
+    return wrap_in_scroll_area(gui.native)

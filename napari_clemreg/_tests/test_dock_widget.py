@@ -15,14 +15,14 @@ npe2 manifest + reader hook are wired correctly.
 import numpy as np
 import pytest
 import tifffile
-from qtpy.QtWidgets import QApplication
+from qtpy.QtWidgets import QApplication, QScrollArea
 
 from napari_clemreg._reader import napari_get_reader
-from napari_clemreg.widgets.fixed_segmentation import fixed_segmentation_widget
-from napari_clemreg.widgets.moving_segmentation import moving_segmentation_widget
-from napari_clemreg.widgets.point_cloud_sampling import point_cloud_sampling_widget
-from napari_clemreg.widgets.registration_warping import registration_warping_widget
-from napari_clemreg.widgets.run_registration import make_run_registration
+from napari_clemreg.widgets.fixed_segmentation import fixed_segmentation_dock_widget, fixed_segmentation_widget
+from napari_clemreg.widgets.moving_segmentation import moving_segmentation_dock_widget, moving_segmentation_widget
+from napari_clemreg.widgets.point_cloud_sampling import point_cloud_sampling_dock_widget, point_cloud_sampling_widget
+from napari_clemreg.widgets.registration_warping import registration_warping_dock_widget, registration_warping_widget
+from napari_clemreg.widgets.run_registration import make_run_registration, make_run_registration_widget
 
 WIDGET_FACTORIES = [
     fixed_segmentation_widget,
@@ -30,6 +30,18 @@ WIDGET_FACTORIES = [
     point_cloud_sampling_widget,
     registration_warping_widget,
     make_run_registration,
+]
+
+# The functions actually registered in napari.yaml (see test_npe2_manifest_loads):
+# each wraps the corresponding WIDGET_FACTORIES entry in a QScrollArea (see
+# clemreg/_qt_layout.py) so the dock panel has a bounded height/width,
+# matching AIoD's own napari plugin's approach.
+DOCK_WIDGET_FACTORIES = [
+    fixed_segmentation_dock_widget,
+    moving_segmentation_dock_widget,
+    point_cloud_sampling_dock_widget,
+    registration_warping_dock_widget,
+    make_run_registration_widget,
 ]
 
 
@@ -45,6 +57,21 @@ def test_widget_factory_builds(factory, qapp):
     assert widget is not None
 
 
+@pytest.mark.parametrize("factory", DOCK_WIDGET_FACTORIES, ids=[f.__name__ for f in DOCK_WIDGET_FACTORIES])
+def test_dock_widget_factory_builds_scroll_area(factory, qapp):
+    """These are what napari.yaml actually registers -- confirm each one
+    builds and is scroll-bounded, not just its underlying FunctionGui.
+    `napari_viewer` is unused by these wrappers (the inner magic_factory
+    call relies on its own Viewer-typed-parameter auto-injection instead,
+    confirmed directly -- passing a viewer as a call-time kwarg to a
+    magic_factory instance is a widget-*option* override, not a value
+    override, and raises), so None is fine here.
+    """
+    widget = factory(None)
+    assert isinstance(widget, QScrollArea)
+    assert widget.widget() is not None
+
+
 def test_pixelsize_quantity_edit_fields_build(qapp):
     """The pint-quantity pixel-size fields are the item the modernisation
     plan (§2.2) flags as most likely to break on a magicgui upgrade.
@@ -58,6 +85,32 @@ def test_pixelsize_quantity_edit_fields_build(qapp):
     ]:
         field = getattr(widget, name)
         assert field.value.units == 'nanometer'
+
+
+def test_advanced_fields_grouped_into_collapsed_sections(qapp):
+    """The fields that used to sit behind one "Parameters custom"
+    checkbox are now split into several QCollapsible sections (see
+    clemreg/_qt_layout.py) -- confirm the reparenting didn't break field
+    access, and that sections start collapsed (matching the old
+    default-hidden state) rather than dumping every field's row into
+    view at once.
+    """
+    from superqt import QCollapsible
+
+    widget = make_run_registration()
+
+    # Field values must still be readable/writable via the normal
+    # magicgui API after being visually moved into a QCollapsible.
+    widget.em_seg_axis.value = True
+    assert widget.em_seg_axis.value is True
+    widget.registration_voxel_size.value = 42
+    assert widget.registration_voxel_size.value == 42
+
+    sections = [
+        w for w in widget.native.findChildren(QCollapsible)
+    ]
+    assert len(sections) == 5
+    assert all(not section.isExpanded() for section in sections)
 
 
 def test_npe2_manifest_loads():
