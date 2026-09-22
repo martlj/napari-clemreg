@@ -4,10 +4,11 @@ on:
   push:
     branches:
       - main
-      - 'feature/**'
+      - modernisation
   pull_request:
     branches:
       - main
+      - modernisation
 
 jobs:
   test:
