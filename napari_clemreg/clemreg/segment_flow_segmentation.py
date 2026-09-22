@@ -12,7 +12,6 @@ notes below for the real, non-obvious gotchas that were found doing so.
 """
 from __future__ import annotations
 
-import csv
 import shutil
 import subprocess
 import tempfile
@@ -51,6 +50,14 @@ def _check_prerequisites() -> None:
             "fail with 'Unsupported class file major version'; a JDK around 17-21 "
             "is the safer bet (set JAVA_HOME to point at it if your default is newer)."
         )
+    try:
+        import aiod_utils  # noqa: F401
+    except ImportError as e:
+        raise SegmentFlowNotAvailable(
+            "Segment-Flow EM segmentation needs the `aiod_utils` package "
+            "(`pip install aiod_utils`) to build the image manifest CSV in the "
+            "format Segment-Flow expects."
+        ) from e
 
 
 def segment_flow_em_segmentation(
@@ -90,16 +97,30 @@ def segment_flow_em_segmentation(
     """
     _check_prerequisites()
 
+    # aiod_utils.io.image_paths_to_csv builds the image-manifest CSV in the
+    # exact format Segment-Flow expects (img_path, num_slices, height, width,
+    # channels, dtype) -- a hand-written CSV with just img_path fails with
+    # "Column 'height' not found" partway through the pipeline (split_stacks),
+    # confirmed directly. Dimension auto-detection from file metadata isn't
+    # implemented upstream (raises NotImplementedError), so dims must be
+    # passed explicitly.
+    from aiod_utils.io import image_paths_to_csv
+
     with tempfile.TemporaryDirectory(prefix="napari_clemreg_segment_flow_") as tmpdir_str:
         tmpdir = Path(tmpdir_str)
         img_path = tmpdir / "input.tif"
         tifffile.imwrite(img_path, volume)
 
         csv_path = tmpdir / "images.csv"
-        with open(csv_path, "w", newline="") as f:
-            writer = csv.writer(f)
-            writer.writerow(["img_path"])
-            writer.writerow([str(img_path)])
+        depth, height, width = volume.shape
+        image_paths_to_csv(
+            [img_path],
+            csv_path,
+            dimensions={"Z": depth, "Y": height, "X": width},
+            dtypes=str(volume.dtype),
+            overwrite=True,
+            index=False,
+        )
 
         cmd = [
             "nextflow", "run", SEGMENT_FLOW_REPO,
