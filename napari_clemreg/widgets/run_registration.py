@@ -24,6 +24,14 @@ class RegistrationThreadJoiner:
         self.init_kwargs = init_kwargs
         self.returned = returned
         self.yielded = yielded
+        # Only ever populated by set_moving_kwargs/set_fixed_kwargs, which
+        # are wired to each worker's `returned` signal -- i.e. only on
+        # success. `finished` (see finished_fixed/finished_moving below)
+        # fires whether the worker succeeded or errored, so None here is
+        # the signal that a segmentation step failed rather than simply
+        # "not started yet".
+        self.moving_kwargs = None
+        self.fixed_kwargs = None
 
     def set_moving_kwargs(self, kwargs):
         self.moving_kwargs = kwargs
@@ -42,6 +50,18 @@ class RegistrationThreadJoiner:
             self.launch_worker()
 
     def launch_worker(self):
+        # Confirmed bug (not new): `finished` fires on error too, so
+        # without this check, a failed FM or EM segmentation left this
+        # method reading self.moving_kwargs/self.fixed_kwargs that were
+        # never set, crashing with an unrelated-looking AttributeError
+        # inside a Qt slot -- which produced no further GUI activity at
+        # all, looking exactly like the whole app had silently hung,
+        # even though the real failure (and its traceback) had already
+        # been reported separately via each worker's own `errored` signal.
+        if self.moving_kwargs is None or self.fixed_kwargs is None:
+            print('Registration not started: FM and/or EM segmentation did not complete successfully.')
+            return
+
         print('Launching registration and warping...')
 
         worker = self.worker_function(**{**self.init_kwargs, **self.moving_kwargs,**self.fixed_kwargs})
@@ -503,6 +523,12 @@ def make_run_registration(
     def _finished_fixed_emitter():
         joiner.finished_fixed()
 
+    def _moving_segmentation_errored(exc):
+        show_error(f'FM segmentation failed, registration will not run: {exc}')
+
+    def _fixed_segmentation_errored(exc):
+        show_error(f'EM segmentation failed, registration will not run: {exc}')
+
     worker_moving = _run_moving_thread(Moving_Image=Moving_Image,
                                        Mask_ROI=Mask_ROI,
                                        z_min=z_min,
@@ -515,11 +541,13 @@ def make_run_registration(
     worker_moving.returned.connect(_class_setter_moving)
     worker_moving.finished.connect(_finished_moving_emitter)
     worker_moving.yielded.connect(_yield_segmentation)
+    worker_moving.errored.connect(_moving_segmentation_errored)
     worker_moving.start()
 
     worker_fixed = _run_fixed_thread(Fixed_Image=Fixed_Image,
                                      em_seg_axis=em_seg_axis)
     worker_fixed.returned.connect(_class_setter_fixed)
     worker_fixed.finished.connect(_finished_fixed_emitter)
+    worker_fixed.errored.connect(_fixed_segmentation_errored)
     worker_fixed.yielded.connect(_yield_segmentation)
     worker_fixed.start()
