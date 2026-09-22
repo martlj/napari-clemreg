@@ -41,6 +41,14 @@ def on_init(widget):
     def change_z_max_from_z_min(z_min_val: int):
         widget.z_max.min = z_min_val
 
+    # Qt widgets don't auto-shrink once they've been made larger -- hiding
+    # child widgets recomputes the container's sizeHint correctly, but
+    # nothing makes the actual widget follow it back down without an
+    # explicit adjustSize() call (confirmed directly on the equivalent bug
+    # in run_registration.py's "Parameters custom" toggle).
+    def _shrink_to_fit():
+        widget.native.adjustSize()
+
     def reveal_z_min_and_z_max():
         if len(widget.Mask_ROI.choices) > 0:
             for x in ['z_min', 'z_max']:
@@ -48,6 +56,7 @@ def on_init(widget):
         else:
             for x in ['z_min', 'z_max']:
                 setattr(getattr(widget, x), 'visible', False)
+        _shrink_to_fit()
 
     def toggle_filter_segmentation(filter_segmentation: bool):
         if filter_segmentation:
@@ -56,6 +65,7 @@ def on_init(widget):
         else:
             for x in filter_segmentation_settings:
                 setattr(getattr(widget, x), 'visible', False)
+        _shrink_to_fit()
 
     widget.z_max.changed.connect(change_z_min)
     widget.Moving_Image.changed.connect(change_z_max)
