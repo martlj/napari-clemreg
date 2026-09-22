@@ -140,7 +140,11 @@ def run_point_cloud_sampling(Moving_Segmentation,
     moving_points_kwargs = dict(
         name='Moving_point_cloud',
         face_color='red',
-        edge_color='black',
+        # napari renamed Points' edge_color constructor arg to
+        # border_color (confirmed directly: napari 0.9.1's Points.__init__
+        # has no edge_color parameter at all, migration shim included --
+        # this is a real, previously-unexercised API break, not a typo).
+        border_color='black',
         size=5,
         metadata={'pxlsz': pxlsz_moving}
     )
@@ -148,7 +152,7 @@ def run_point_cloud_sampling(Moving_Segmentation,
     fixed_points_kwargs = dict(
         name='Fixed_point_cloud',
         face_color='blue',
-        edge_color='black',
+        border_color='black',
         size=5,
         metadata={'pxlsz': pxlsz_fixed, 'output_shape': fixed_seg.shape}
     )
