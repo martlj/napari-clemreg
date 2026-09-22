@@ -76,20 +76,23 @@ cd napari-clemreg
 
 This branch now requires **Python 3.11+**. `empanada-dl` (needed for the bundled EM Segmentation widget) currently blocks a normal install on Python 3.11 — it hard-pins `numpy==1.22`, which has no Python 3.11 wheels (tracked in [issue #5](https://github.com/martlj/napari-clemreg/issues/5)). Until that's resolved, install everything else and skip it.
 
-Using [`uv`](https://docs.astral.sh/uv/) (recommended — fast, and installs the Python version for you if needed):
+Using [`uv`](https://docs.astral.sh/uv/) (recommended — fast, and installs the Python version for you if needed). `uv pip install` and `uv run` both auto-detect the local `.venv`, so **don't `source .venv/bin/activate`** — if you have a conda environment already active (e.g. `base` auto-activates in many setups), a plain `source activate` can silently lose to conda's own `PATH` handling and run the wrong `napari` entirely:
 
 ```
 uv venv --python 3.11
-source .venv/bin/activate   # .venv\Scripts\activate on Windows
 uv pip install typing_extensions setuptools packaging pint numpy scipy "scikit-image>=0.22" "magicgui>=0.8.3" "napari>=0.6" open3d probreg transforms3d tqdm h5py matplotlib imageio tifffile torch connected-components-3d pyqt5
 uv pip install -e . --no-deps
+uv run napari
 ```
 
-Or with plain `pip` (needs an existing Python 3.11+ interpreter, e.g. via conda — `conda create -n clemreg_dev python=3.11 && conda activate clemreg_dev`), same package list:
+Or with plain `pip` in a conda environment (needs an existing Python 3.11+ interpreter):
 
 ```
+conda create -n clemreg_dev python=3.11
+conda activate clemreg_dev
 pip install typing_extensions setuptools packaging pint numpy scipy "scikit-image>=0.22" "magicgui>=0.8.3" "napari>=0.6" open3d probreg transforms3d tqdm h5py matplotlib imageio tifffile torch connected-components-3d pyqt5
 pip install -e . --no-deps
+napari
 ```
 
 Either way, this gives you a working install of everything **except** the bundled EM Segmentation (MitoNet/empanada) widget. For EM segmentation, use [AI-on-Demand instead](#using-ai-on-demand-aiod-for-em-segmentation) — see Usage below.
