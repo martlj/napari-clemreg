@@ -43,6 +43,47 @@ class SegmentFlowRunError(RuntimeError):
     """Raised when the Nextflow pipeline itself fails."""
 
 
+def _build_subprocess_env() -> dict:
+    """Environment for the Nextflow subprocess call.
+
+    NXF_VER pins to a Nextflow release known to work with
+    SEGMENT_FLOW_REVISION (see its comment above) -- newer Nextflow
+    releases hit a real Groovy parse regression against Segment-Flow's
+    pipeline script, confirmed directly. Left alone if the caller's own
+    environment already sets NXF_VER.
+
+    JAVA_HOME: Nextflow needs a JDK, and very recent ones (confirmed: 26)
+    fail with "Unsupported class file major version". macOS's own
+    `/usr/libexec/java_home -v <N>` isn't reliable here -- confirmed
+    directly that it happily returns a *newer* JDK than requested instead
+    of failing, so it can't tell us whether a compatible one is actually
+    available. Instead, look directly for a Homebrew-installed
+    openjdk@17/21 (the two versions the prerequisite-check error message
+    below recommends), under both the Apple Silicon and Intel Homebrew
+    prefixes. Left alone if the caller already set JAVA_HOME, or if no
+    such install is found -- guessing further would risk pointing at a
+    path that doesn't exist.
+    """
+    import os
+    import platform
+
+    env = os.environ.copy()
+    env.setdefault("NXF_VER", "25.04.7")
+
+    if platform.system() == "Darwin" and "JAVA_HOME" not in os.environ:
+        for homebrew_prefix in ("/opt/homebrew/opt", "/usr/local/opt"):
+            for jdk_version in ("21", "17"):
+                candidate = Path(homebrew_prefix) / f"openjdk@{jdk_version}"
+                if candidate.is_dir():
+                    env["JAVA_HOME"] = str(candidate)
+                    break
+            else:
+                continue
+            break
+
+    return env
+
+
 def _check_prerequisites() -> None:
     missing = [tool for tool in ("nextflow", "conda") if shutil.which(tool) is None]
     if missing:
@@ -51,7 +92,10 @@ def _check_prerequisites() -> None:
             "See https://www.nextflow.io/ and https://docs.conda.io/ to install. "
             "Note: Nextflow also needs a JDK -- very recent JDKs (tested: 26) can "
             "fail with 'Unsupported class file major version'; a JDK around 17-21 "
-            "is the safer bet (set JAVA_HOME to point at it if your default is newer)."
+            "is the safer bet (e.g. `brew install openjdk@21` on macOS -- this is "
+            "auto-detected and used even without setting JAVA_HOME yourself; on "
+            "other platforms, set JAVA_HOME to point at a 17-21 JDK if your "
+            "default is newer)."
         )
     try:
         import aiod_utils  # noqa: F401
@@ -146,7 +190,9 @@ def segment_flow_em_segmentation(
             "--root_dir", str(root_dir),
         ]
 
-        result = subprocess.run(cmd, cwd=tmpdir, capture_output=True, text=True)
+        result = subprocess.run(
+            cmd, cwd=tmpdir, capture_output=True, text=True, env=_build_subprocess_env()
+        )
         if result.returncode != 0:
             raise SegmentFlowRunError(
                 f"Segment-Flow failed (exit {result.returncode}):\n"
