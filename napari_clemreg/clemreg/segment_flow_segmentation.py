@@ -235,7 +235,37 @@ def segment_flow_em_segmentation(
             "failure from an ERROR block partway through.",
             flush=True,
         )
-        returncode, output = _run_nextflow(cmd, cwd=tmpdir, env=_build_subprocess_env())
+        # setupModel and computeImageIds are submitted by Nextflow just
+        # milliseconds apart (confirmed directly from a real run's
+        # .nextflow.log: 15:21:23.110 vs 15:21:23.117) -- genuinely
+        # concurrent, near-simultaneous `conda activate`/`conda info
+        # --json` invocations, which conda's own activation mechanism is
+        # not safe against racing. Confirmed directly that this is a race
+        # and not a real misconfiguration: the exact cached conda env
+        # setupModel needs was checked directly and does have
+        # aiod_registry correctly installed, and a manual, sequential
+        # (non-concurrent) run of the identical activation command always
+        # succeeds -- only the real, concurrently-submitted case has been
+        # seen to fail this way, intermittently. Retrying the whole run is
+        # cheap (the env/model checkpoint are already cached) and safe
+        # (idempotent), so retry a bounded number of times specifically
+        # for this narrow, recognisable failure signature -- not for
+        # failures in general, which should still surface immediately.
+        max_attempts = 3
+        for attempt in range(1, max_attempts + 1):
+            returncode, output = _run_nextflow(cmd, cwd=tmpdir, env=_build_subprocess_env())
+            if returncode == 0:
+                break
+            if attempt < max_attempts and "setupModel" in output and "ModuleNotFoundError" in output:
+                print(
+                    f"Segment-Flow attempt {attempt}/{max_attempts} hit the known "
+                    "transient conda-activation race between concurrently-submitted "
+                    "Nextflow tasks (setupModel vs. computeImageIds) -- retrying...",
+                    flush=True,
+                )
+                time.sleep(2)
+                continue
+            break
 
         # .nextflow.log lands in cwd (tmpdir), which is deleted with the
         # `with` block above -- so without this, the one file that would

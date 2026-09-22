@@ -13,10 +13,12 @@ from unittest.mock import patch
 import numpy as np
 import pytest
 
+from napari_clemreg.clemreg import segment_flow_segmentation as sf
 from napari_clemreg.clemreg.segment_flow_segmentation import (
     SEGMENT_FLOW_REPO,
     SEGMENT_FLOW_REVISION,
     SegmentFlowNotAvailable,
+    SegmentFlowRunError,
     _check_prerequisites,
     segment_flow_em_segmentation,
 )
@@ -47,6 +49,63 @@ def test_segment_flow_em_segmentation_raises_clearly_without_prerequisites():
     with patch("shutil.which", return_value=None):
         with pytest.raises(SegmentFlowNotAvailable):
             segment_flow_em_segmentation(np.zeros((2, 2, 2), dtype=np.uint8))
+
+
+def test_segment_flow_retries_transient_setup_model_race(tmp_path):
+    """setupModel and computeImageIds are submitted by Nextflow just
+    milliseconds apart (confirmed directly from a real run's
+    .nextflow.log) -- genuinely concurrent `conda activate`/`conda info
+    --json` invocations, which conda's own activation mechanism isn't
+    safe against racing. Confirmed directly this is a race, not a real
+    misconfiguration: the exact cached env setupModel needs was checked
+    directly and does have aiod_registry correctly installed, and a
+    manual, sequential (non-concurrent) run of the identical activation
+    command always succeeds. Retrying is cheap (everything's cached) and
+    safe (idempotent).
+    """
+    mask_dir = tmp_path / "aiod_cache" / "empanada" / "MitoNet v1_masks"
+    mask_dir.mkdir(parents=True)
+    (mask_dir / "input_masks_deadbeef_all.tiff").touch()
+
+    calls = []
+
+    def fake_run_nextflow(cmd, cwd, env):
+        calls.append(1)
+        if len(calls) < 3:
+            return 1, (
+                "ERROR ~ Error executing process > 'setupModel'\n"
+                "ModuleNotFoundError: No module named 'aiod_registry'"
+            )
+        return 0, "ok"
+
+    with patch.object(sf, "_run_nextflow", fake_run_nextflow), \
+         patch.object(sf, "_check_prerequisites", lambda: None), \
+         patch.object(sf.time, "sleep", lambda seconds: None), \
+         patch("aiod_utils.io.image_paths_to_csv", lambda *a, **k: None), \
+         patch("tifffile.imread", lambda p: np.zeros((2, 2, 2), dtype=np.uint8)):
+        result = segment_flow_em_segmentation(np.zeros((2, 4, 4), dtype=np.uint8), root_dir=tmp_path)
+
+    assert result.shape == (2, 2, 2)
+    assert len(calls) == 3
+
+
+def test_segment_flow_does_not_retry_unrelated_failures(tmp_path):
+    """A real, non-transient failure should surface immediately, not get
+    masked behind retries meant only for the specific known race above.
+    """
+    calls = []
+
+    def fake_run_nextflow(cmd, cwd, env):
+        calls.append(1)
+        return 1, "ERROR ~ some other real failure\nValueError: bad model_type"
+
+    with patch.object(sf, "_run_nextflow", fake_run_nextflow), \
+         patch.object(sf, "_check_prerequisites", lambda: None), \
+         patch("aiod_utils.io.image_paths_to_csv", lambda *a, **k: None):
+        with pytest.raises(SegmentFlowRunError):
+            segment_flow_em_segmentation(np.zeros((2, 4, 4), dtype=np.uint8), root_dir=tmp_path)
+
+    assert len(calls) == 1
 
 
 @pytest.mark.slow
