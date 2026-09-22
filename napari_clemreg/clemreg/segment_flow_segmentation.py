@@ -213,6 +213,21 @@ def segment_flow_em_segmentation(
             "nextflow", "run", SEGMENT_FLOW_REPO,
             "-r", SEGMENT_FLOW_REVISION,
             "-profile", profile,
+            # Forces every task to run one at a time instead of Nextflow's
+            # normal per-process-name parallelism (process.maxForks limits
+            # concurrency *within* one process name, not across different
+            # ones -- confirmed directly it does NOT prevent this).
+            # setupModel and computeImageIds are otherwise submitted only
+            # milliseconds apart (confirmed directly: 7ms in one real run),
+            # both independently running `conda activate` at nearly the
+            # same instant -- confirmed directly this collision is what
+            # breaks setupModel's env activation (it reliably fails when
+            # racing, reliably succeeds run alone), not a broken/missing
+            # aiod_registry install (checked directly: present and
+            # importable in the exact cached env). Costs some wall-clock
+            # time (no more parallel stages) in exchange for not failing
+            # close to 100% of the time on this machine.
+            "-executor.queueSize", "1",
             "--img_dir", str(csv_path),
             "--model", "empanada",
             "--model_type", model_type,
