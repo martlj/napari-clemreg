@@ -90,6 +90,19 @@ def on_init(widget):
     for x in advanced_settings + ['z_min', 'z_max'] + json_settings + filter_segmentation_settings + save_json_settings:
         setattr(getattr(widget, x), 'visible', False)
 
+    # Qt widgets don't auto-shrink once they've been made larger -- hiding
+    # child widgets recomputes the container's sizeHint correctly, but
+    # nothing makes the actual widget follow it back down without an
+    # explicit adjustSize() call. Confirmed directly: after re-hiding the
+    # advanced settings, sizeHint() drops back to the small size but size()
+    # stays stuck at the larger one until adjustSize() runs -- this is what
+    # left the dock panel growing on "Parameters custom" but never
+    # shrinking back. Call it at the end of every toggle below, regardless
+    # of which way the checkbox went, since growing needs a resize too
+    # (just one Qt already happens to get right on its own in practice).
+    def _shrink_to_fit():
+        widget.native.adjustSize()
+
     def toggle_transform_widget(advanced: bool):
         if advanced:
             for x in advanced_settings + standard_settings:
@@ -105,6 +118,7 @@ def on_init(widget):
                 setattr(getattr(widget, x), 'visible', True)
             for x in advanced_settings:
                 setattr(getattr(widget, x), 'visible', False)
+        _shrink_to_fit()
 
     def toggle_json_widget(load_json: bool):
         if load_json:
@@ -115,6 +129,7 @@ def on_init(widget):
         else:
             for x in json_settings:
                 setattr(getattr(widget, x), 'visible', False)
+        _shrink_to_fit()
 
     def toggle_filter_segmentation(filter_segmentation: bool):
         if filter_segmentation:
@@ -123,6 +138,7 @@ def on_init(widget):
         else:
             for x in filter_segmentation_settings:
                 setattr(getattr(widget, x), 'visible', False)
+        _shrink_to_fit()
 
     def toggle_save_json(save_json: bool):
         if save_json:
@@ -131,6 +147,7 @@ def on_init(widget):
         else:
             for x in save_json_settings:
                 setattr(getattr(widget, x), 'visible', False)
+        _shrink_to_fit()
 
     def change_z_max(input_image: Image):
         if len(input_image.data.shape) == 3:
