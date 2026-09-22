@@ -125,8 +125,8 @@ Alternatively, they can be run individually with the numbered widgets.
 9. **Parameters from JSON** - Here you can select a JSON file containing the parameters for the registration.
 10. **Parameters custom** - If you select this, you will be able to edit the default parameters.
 11. **EM Segmentation Parameters** - Here are the advanced options for the segmentation of the mitochondria in the EM data.
-    1. **Prediction Across Three Axis** - By selecting this option MitoNet will run segmentation across all three axis of the EM volume and then these three predictions will be aggregated. Only applies to the bundled `empanada (local)` backend.
-    2. **EM Segmentation Backend** - Choose between `AI-on-Demand (Segment-Flow)` (the default — see [Using AI-on-Demand (AIoD) for EM Segmentation](#using-ai-on-demand-aiod-for-em-segmentation) below for the extra setup it needs) and `empanada (local)` (the bundled MitoNet, currently blocked on Python 3.11 — see [issue #5](https://github.com/martlj/napari-clemreg/issues/5)).
+    1. **Prediction Across Three Axis** - By selecting this option MitoNet will run segmentation across all three axis of the EM volume and then these three predictions will be aggregated. Only applies to the bundled `MitoNet (empanada-dl)` backend.
+    2. **EM Segmentation Backend** - Both options run the same MitoNet model, just accessed differently. Choose between `MitoNet (Segment-Flow)` (the default — see [Using AI-on-Demand (AIoD) for EM Segmentation](#using-ai-on-demand-aiod-for-em-segmentation) below for the extra setup it needs) and `MitoNet (empanada-dl)` (bundled, but currently blocked on Python 3.11 — see [issue #5](https://github.com/martlj/napari-clemreg/issues/5)).
 12. **LoG Segmentation Parameters** - Here are the advanced options for the segmentation of the mitochondria in the LM data.
     1. **Sigma** - Sigma value for the Laplacian of Gaussian filter.
     2. **Threshold** - Threshold value for the segmenting the LM data.
@@ -181,7 +181,7 @@ Both the standalone `Electron Microscopy (EM) Segmentation` widget and the all-i
   ```
   (or `pip install "napari-clemreg[segment-flow]"`)
 
-Once those are in place, select `AI-on-Demand (Segment-Flow)` from the **EM Segmentation Backend** dropdown and run as normal. The first run on a given machine downloads and builds an isolated Conda environment for the model (cached under `~/.nextflow/aiod`, reused on later runs), so it can take several minutes; progress streams to the terminal. The model itself always runs inside Segment-Flow's own isolated environment, never in napari-clemreg's own Python process.
+Once those are in place, select `MitoNet (Segment-Flow)` from the **EM Segmentation Backend** dropdown and run as normal. The first run on a given machine downloads and builds an isolated Conda environment for the model (cached under `~/.nextflow/aiod`, reused on later runs), so it can take several minutes; progress streams to the terminal. The model itself always runs inside Segment-Flow's own isolated environment, never in napari-clemreg's own Python process.
 
 **Just want to try the pipeline without a GPU or setting up AIoD?** `File → Open Sample → napari-clemreg → EM Mask (precomputed, no GPU needed)` loads a precomputed EM segmentation matching the EM volume in the main sample data, so you can go straight to the `Point Cloud Sampling` widget without running any EM segmentation step at all.
 
