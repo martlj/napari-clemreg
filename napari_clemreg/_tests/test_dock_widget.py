@@ -61,13 +61,19 @@ def test_widget_factory_builds(factory, qapp):
 def test_dock_widget_factory_builds_scroll_area(factory, qapp):
     """These are what napari.yaml actually registers -- confirm each one
     builds and is scroll-bounded, not just its underlying FunctionGui.
-    `napari_viewer` is unused by these wrappers (the inner magic_factory
-    call relies on its own Viewer-typed-parameter auto-injection instead,
-    confirmed directly -- passing a viewer as a call-time kwarg to a
-    magic_factory instance is a widget-*option* override, not a value
-    override, and raises), so None is fine here.
+
+    Called with zero arguments, exactly how napari itself calls it
+    (confirmed directly in napari's own source,
+    _qnpe2._get_widget_viewer_param: viewer-injection-by-parameter-name
+    only applies to class-based widgets, not plain functions like these
+    wrappers -- "For magicgui type widget contributions, Viewer
+    injection is done by magicgui.register_type instead", that code's
+    own comment). A first version of these wrappers required
+    `napari_viewer` with no default and crashed in the real app with
+    exactly this call pattern, despite `factory(None)` passing here --
+    this test calls it the same way napari does.
     """
-    widget = factory(None)
+    widget = factory()
     assert isinstance(widget, QScrollArea)
     assert widget.widget() is not None
 

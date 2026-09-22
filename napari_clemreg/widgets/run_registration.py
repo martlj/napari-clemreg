@@ -523,7 +523,7 @@ def make_run_registration(
     worker_fixed.start()
 
 
-def make_run_registration_widget(napari_viewer: 'napari.viewer.Viewer'):
+def make_run_registration_widget(napari_viewer: 'napari.viewer.Viewer' = None):
     """The actual napari-docked widget. Builds the same FunctionGui as
     ``make_run_registration()`` (kept as its own importable factory --
     unchanged for anything, such as the tests, that wants the raw
@@ -534,10 +534,21 @@ def make_run_registration_widget(napari_viewer: 'napari.viewer.Viewer'):
     against its real source), rather than the ad hoc sizeHint/adjustSize
     patching this used before.
     """
-    # magic_factory's __call__ treats kwargs as widget-option overrides,
-    # not runtime values -- confirmed directly (`viewer=napari_viewer`
-    # raised "must be a dict"). Call with no args and let its own
-    # Viewer-typed-parameter auto-injection (via napari.current_viewer())
-    # resolve it, exactly as it already did before this widget was wrapped.
+    # napari_viewer defaults to None and is otherwise unused -- confirmed
+    # directly in napari's own source (_qnpe2._get_widget_viewer_param)
+    # that its viewer-auto-injection-by-parameter-name only applies to
+    # class-based (QWidget/magicgui.widgets.Widget subclass) widgets; for
+    # a plain function like this one it's unconditionally skipped ("For
+    # magicgui type widget contributions, Viewer injection is done by
+    # magicgui.register_type instead" -- that code's own comment), so
+    # napari calls this with zero arguments. A required positional
+    # parameter here crashed with exactly that TypeError.
+    #
+    # magic_factory's own __call__ also treats kwargs as widget-option
+    # overrides, not runtime values -- confirmed directly
+    # (`viewer=napari_viewer` raised "must be a dict"). So: call with no
+    # args and let its own Viewer-typed-parameter auto-injection (via
+    # magicgui's registered napari.viewer.Viewer type provider) resolve
+    # it, exactly as it already did before this widget was wrapped.
     gui = make_run_registration()
     return wrap_in_scroll_area(gui.native)

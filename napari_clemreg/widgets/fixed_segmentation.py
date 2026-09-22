@@ -82,13 +82,18 @@ def fixed_segmentation_widget(viewer: 'napari.viewer.Viewer',
     worker_fixed.start()
 
 
-def fixed_segmentation_dock_widget(napari_viewer: 'napari.viewer.Viewer'):
+def fixed_segmentation_dock_widget(napari_viewer: 'napari.viewer.Viewer' = None):
     """The actual napari-docked widget -- wraps fixed_segmentation_widget()
     in a QScrollArea so the panel has a bounded height/width, matching
     AIoD's own napari plugin's approach (verified against its real
     source). This widget is small (3 fields), so there's no burst-reveal
     lag to fix here, but the same scroll-bounding is applied for
     consistency across every widget in this plugin.
+
+    napari_viewer defaults to None and is otherwise unused -- confirmed
+    in napari's own source that viewer-injection-by-parameter-name only
+    applies to class-based widgets, not plain functions like this one
+    (see the longer note in run_registration.make_run_registration_widget).
     """
     # magic_factory's __call__ treats kwargs as widget-option overrides,
     # not runtime values, so call with no args and let its own

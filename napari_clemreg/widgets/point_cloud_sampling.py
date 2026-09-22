@@ -131,10 +131,15 @@ def point_cloud_sampling_widget(viewer: 'napari.viewer.Viewer',
     worker_pc_sampling.start()
 
 
-def point_cloud_sampling_dock_widget(napari_viewer: 'napari.viewer.Viewer'):
+def point_cloud_sampling_dock_widget(napari_viewer: 'napari.viewer.Viewer' = None):
     """The actual napari-docked widget -- wraps point_cloud_sampling_widget()
     in a QScrollArea for a bounded height/width, matching AIoD's own
     napari plugin's approach (verified against its real source).
+
+    napari_viewer defaults to None and is otherwise unused -- confirmed
+    in napari's own source that viewer-injection-by-parameter-name only
+    applies to class-based widgets, not plain functions like this one
+    (see the longer note in run_registration.make_run_registration_widget).
     """
     # magic_factory's __call__ treats kwargs as widget-option overrides,
     # not runtime values, so call with no args and let its own
