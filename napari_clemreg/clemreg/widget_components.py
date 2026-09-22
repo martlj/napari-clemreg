@@ -56,13 +56,18 @@ def run_moving_segmentation(Moving_Image,
 Fixed segmentation
 """
 def run_fixed_segmentation(Fixed_Image,
-                           em_seg_axis
-
+                           em_seg_axis,
+                           em_segmentation_backend='empanada (local)'
 ):
-    from ..clemreg.empanada_segmentation import empanada_segmentation
+    if em_segmentation_backend == 'AI-on-Demand (Segment-Flow)':
+        from ..clemreg.segment_flow_segmentation import segment_flow_em_segmentation
 
-    seg_volume = empanada_segmentation(input=Fixed_Image.data,
-                                       axis_prediction=em_seg_axis)
+        seg_volume = segment_flow_em_segmentation(Fixed_Image.data)
+    else:
+        from ..clemreg.empanada_segmentation import empanada_segmentation
+
+        seg_volume = empanada_segmentation(input=Fixed_Image.data,
+                                           axis_prediction=em_seg_axis)
 
     if len(set(seg_volume.ravel())) <= 1:
         return 'No segmentation'

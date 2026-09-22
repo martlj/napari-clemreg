@@ -63,6 +63,7 @@ def on_init(widget):
     standard_settings = ['widget_header', 'Moving_Image', 'Fixed_Image', 'Mask_ROI', 'advanced']
     advanced_settings = ['em_seg_header',
                          'em_seg_axis',
+                         'em_segmentation_backend',
                          'log_header',
                          'log_sigma',
                          'log_threshold',
@@ -208,6 +209,7 @@ def on_init(widget):
                               'label': f'<h3 text-align="left">MitoNet Segmentation Parameters</h3>'},
 
                em_seg_axis=specs['em_seg_axis'],
+               em_segmentation_backend=specs['em_segmentation_backend'],
 
                log_header={'widget_type': 'Label',
                            'label': f'<h3 text-align="left">LoG Segmentation Parameters</h3>'},
@@ -266,6 +268,7 @@ def make_run_registration(
 
         em_seg_header,
         em_seg_axis,
+        em_segmentation_backend,
 
         log_header,
         log_sigma,
@@ -310,6 +313,7 @@ def make_run_registration(
     white_space_0
     em_seg_header
     em_seg_axis
+    em_segmentation_backend
     white_space_1
     log_header
     log_sigma
@@ -335,7 +339,6 @@ def make_run_registration(
 
     """
     from pathlib import Path
-    from ..clemreg.empanada_segmentation import empanada_segmentation
     from ..clemreg.log_segmentation import log_segmentation, filter_binary_segmentation
     from ..clemreg.mask_roi import mask_roi, mask_area
     from ..clemreg.point_cloud_registration import point_cloud_registration
@@ -518,7 +521,8 @@ def make_run_registration(
     worker_moving.start()
 
     worker_fixed = _run_fixed_thread(Fixed_Image=Fixed_Image,
-                                     em_seg_axis=em_seg_axis)
+                                     em_seg_axis=em_seg_axis,
+                                     em_segmentation_backend=em_segmentation_backend)
     worker_fixed.returned.connect(_class_setter_fixed)
     worker_fixed.finished.connect(_finished_fixed_emitter)
     worker_fixed.yielded.connect(_yield_segmentation)

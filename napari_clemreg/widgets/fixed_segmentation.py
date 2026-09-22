@@ -11,11 +11,13 @@ from ..clemreg.on_init_specs import specs
                               'label': f'<h2 text-align="left">Electron Microscopy Segmentation</h2>'},
                Fixed_Image=specs['Fixed_Image'],
                em_seg_axis=specs['em_seg_axis'],
+               em_segmentation_backend=specs['em_segmentation_backend'],
                )
 def fixed_segmentation_widget(viewer: 'napari.viewer.Viewer',
                               widget_header,
                               Fixed_Image: Image,
-                              em_seg_axis: bool
+                              em_seg_axis: bool,
+                              em_segmentation_backend: str
                               ):
     """
     This widget takes an EM image as input and performs
@@ -32,6 +34,9 @@ def fixed_segmentation_widget(viewer: 'napari.viewer.Viewer',
         The EM Image
     em_seg_axis :
         Option to run segmentation across three axis
+    em_segmentation_backend :
+        Which EM segmentation backend to use: the bundled empanada-dl
+        (MitoNet), or Crick's AI-on-Demand (Segment-Flow) pipeline
 
     Returns
     -------
@@ -40,7 +45,6 @@ def fixed_segmentation_widget(viewer: 'napari.viewer.Viewer',
 
     """
     import numpy as np
-    from ..clemreg.empanada_segmentation import empanada_segmentation
 
     @thread_worker
     def _run_fixed_thread(**kwargs):
@@ -71,6 +75,7 @@ def fixed_segmentation_widget(viewer: 'napari.viewer.Viewer',
         return
 
     worker_fixed = _run_fixed_thread(Fixed_Image=Fixed_Image,
-                                     em_seg_axis=em_seg_axis)
+                                     em_seg_axis=em_seg_axis,
+                                     em_segmentation_backend=em_segmentation_backend)
     worker_fixed.returned.connect(_add_data)
     worker_fixed.start()
