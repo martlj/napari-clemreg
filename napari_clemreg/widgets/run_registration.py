@@ -392,6 +392,14 @@ def make_run_registration(
         from ..clemreg.widget_components import run_moving_segmentation
 
         seg_volume_mask = run_moving_segmentation(**kwargs)
+        # run_moving_segmentation returns the string 'No segmentation'
+        # (not an array) when nothing was found -- confirmed live this
+        # crashes with a confusing AttributeError ('str' object has no
+        # attribute 'astype') instead of a clear message otherwise,
+        # since unlike the standalone moving_segmentation widget, this
+        # combined widget never checked for it before calling .astype().
+        if isinstance(seg_volume_mask, str):
+            raise ValueError('No mitochondria found in Moving Image (FM)')
         seg_volume_mask = Labels(seg_volume_mask.astype(np.uint32),
                                  name='FM_segmentation',
                                  metadata=Moving_Image.metadata)
@@ -407,6 +415,12 @@ def make_run_registration(
         #Increasing levels of CLAHE
 
         seg_volume = run_fixed_segmentation(**kwargs)
+        # Same as _run_moving_thread above: run_fixed_segmentation
+        # returns the string 'No segmentation' when nothing was found,
+        # not an array -- confirmed live this crashes with a confusing
+        # AttributeError instead of a clear message without this check.
+        if isinstance(seg_volume, str):
+            raise ValueError('No mitochondria found in Fixed Image (EM)')
         seg_volume = Labels(seg_volume.astype(np.int64),
                             name='EM_segmentation',
                             metadata=Fixed_Image.metadata)
