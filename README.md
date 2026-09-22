@@ -124,8 +124,9 @@ Alternatively, they can be run individually with the numbered widgets.
 8. **Registration Algorithm** - Here you can decide which type of registration algorith will be used for the registration of inputted LM and EM. In terms of speed of each algorithm the following is the generally true, Rigid CPD > Affine CPD > BCPD.
 9. **Parameters from JSON** - Here you can select a JSON file containing the parameters for the registration.
 10. **Parameters custom** - If you select this, you will be able to edit the default parameters.
-11. **MitoNet Segmentation Parameters** - Here are the advanced options for the segmentation of the mitochondria in the EM data.
-    1. **Prediction Across Three Axis** - By selecting this option MitoNet will run segmentation across all three axis of the EM volume and then these three predictions will be aggregate.
+11. **EM Segmentation Parameters** - Here are the advanced options for the segmentation of the mitochondria in the EM data.
+    1. **Prediction Across Three Axis** - By selecting this option MitoNet will run segmentation across all three axis of the EM volume and then these three predictions will be aggregated. Only applies to the bundled `empanada (local)` backend.
+    2. **EM Segmentation Backend** - Choose between `empanada (local)` (the bundled MitoNet, currently blocked on Python 3.11 — see [issue #5](https://github.com/martlj/napari-clemreg/issues/5)) and `AI-on-Demand (Segment-Flow)` — see [Using AI-on-Demand (AIoD) for EM Segmentation](#using-ai-on-demand-aiod-for-em-segmentation) below for the extra setup it needs.
 12. **LoG Segmentation Parameters** - Here are the advanced options for the segmentation of the mitochondria in the LM data.
     1. **Sigma** - Sigma value for the Laplacian of Gaussian filter.
     2. **Threshold** - Threshold value for the segmenting the LM data.
@@ -169,13 +170,18 @@ their own unique input and output:
 
 ### Using AI-on-Demand (AIoD) for EM Segmentation
 
-The bundled `Electron Microscopy (EM) Segmentation` widget uses MitoNet via `empanada-dl`, a dependency that is no longer actively maintained and can be difficult to install alongside a modern Python/napari setup. As an alternative, you can run MitoNet through the Crick's [AI-on-Demand (AIoD)](https://franciscrickinstitute.github.io/aiod_docs/) project instead, and feed its output straight into CLEM-Reg's own `Point Cloud Sampling` widget — no changes to the rest of the CLEM-Reg workflow are needed.
+The bundled `Electron Microscopy (EM) Segmentation` widget defaults to running MitoNet directly via `empanada-dl`, a dependency that's no longer actively maintained and currently blocks installation entirely on Python 3.11 (see [issue #5](https://github.com/martlj/napari-clemreg/issues/5)). As an alternative, both the standalone `EM Segmentation` widget and the all-in-one `Run Registration` widget offer an **EM Segmentation Backend** dropdown — switch it to `AI-on-Demand (Segment-Flow)` to run the same MitoNet model through Crick's [AI-on-Demand (AIoD)](https://franciscrickinstitute.github.io/aiod_docs/) Segment-Flow pipeline instead, with no other changes to your workflow. Unlike the earlier approach of running AIoD's own separate `aiod_napari` plugin and manually feeding its output into `Point Cloud Sampling`, this is fully integrated — just pick the backend and run.
 
-1. Install the [`aiod_napari`](https://github.com/FrancisCrickInstitute/aiod_napari) plugin alongside `napari-clemreg` in the same environment (it additionally requires [Nextflow](https://www.nextflow.io/) and Conda to actually run models — see AIoD's [Prerequisites](https://franciscrickinstitute.github.io/aiod_docs/sections/getting_started/#prerequisites)).
-2. Open `Plugins → AI OnDemand → Inference`, point it at your EM image, and select the `empanada` model (MitoNet). AIoD handles splitting the volume, running the model — locally or on HPC, depending on profile — caching results, and loading the resulting segmentation back into napari as a `Labels` layer.
-3. Use that `Labels` layer directly as the **EM Segmentation** input to CLEM-Reg's `Point Cloud Sampling` widget, then continue with `Point Cloud Registration & Image Warping` as usual.
+**Prerequisites** (only needed for this backend — the rest of napari-clemreg works without them):
+- [Nextflow](https://www.nextflow.io/) and [Conda](https://docs.conda.io/) on `PATH`.
+- A JDK, ideally version 17–21 — very recent JDKs (tested: 26) fail with `Unsupported class file major version`. On macOS, `brew install openjdk@21` is enough on its own; it's auto-detected even without setting `JAVA_HOME` yourself. On other platforms, set `JAVA_HOME` to point at a compatible JDK if your system default is newer.
+- The `segment-flow` extra, which pulls in the small, pure-Python packages needed to talk to AIoD's model registry (no heavy ML dependencies):
+  ```
+  uv pip install "napari-clemreg[segment-flow]"
+  ```
+  (or `pip install "napari-clemreg[segment-flow]"`)
 
-See AIoD's [Inference widget documentation](https://franciscrickinstitute.github.io/aiod_docs/sections/front_ends/napari_plugin/inference/) for the full walkthrough.
+Once those are in place, select `AI-on-Demand (Segment-Flow)` from the **EM Segmentation Backend** dropdown and run as normal. The first run on a given machine downloads and builds an isolated Conda environment for the model (cached under `~/.nextflow/aiod`, reused on later runs), so it can take several minutes; progress streams to the terminal. The model itself always runs inside Segment-Flow's own isolated environment, never in napari-clemreg's own Python process.
 
 **Just want to try the pipeline without a GPU or setting up AIoD?** `File → Open Sample → napari-clemreg → EM Mask (precomputed, no GPU needed)` loads a precomputed EM segmentation matching the EM volume in the main sample data, so you can go straight to the `Point Cloud Sampling` widget without running any EM segmentation step at all.
 
