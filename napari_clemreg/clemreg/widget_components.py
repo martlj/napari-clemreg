@@ -57,7 +57,7 @@ Fixed segmentation
 """
 def run_fixed_segmentation(Fixed_Image,
                            em_seg_axis,
-                           em_segmentation_backend='empanada (local)'
+                           em_segmentation_backend='AI-on-Demand (Segment-Flow)'
 ):
     if em_segmentation_backend == 'AI-on-Demand (Segment-Flow)':
         from napari.utils.notifications import show_info

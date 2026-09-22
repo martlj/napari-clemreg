@@ -32,13 +32,21 @@ specs = {
                  'widget_type': 'CheckBox',
                  'value': False},
 
+    # Default is AI-on-Demand (Segment-Flow), not empanada (local) --
+    # empanada-dl is unmaintained and its numpy==1.22 pin means the
+    # `empanada` extra currently cannot install at all on Python 3.11
+    # (see issue #5), while Segment-Flow has been verified end-to-end
+    # against real production data (see #5/#16). Both run the exact same
+    # underlying model weights, so this is purely about which one can
+    # actually work out of the box today.
     'em_segmentation_backend':{'label': 'EM Segmentation Backend',
                              'widget_type': 'ComboBox',
-                             'choices': ['empanada (local)', 'AI-on-Demand (Segment-Flow)'],
-                             'value': 'empanada (local)',
-                             'tooltip': 'empanada (local) requires empanada-dl (see issue #5). '
-                                        'AI-on-Demand (Segment-Flow) shells out to a Nextflow '
-                                        'pipeline and requires Nextflow and Conda on PATH.'},
+                             'choices': ['AI-on-Demand (Segment-Flow)', 'empanada (local)'],
+                             'value': 'AI-on-Demand (Segment-Flow)',
+                             'tooltip': 'AI-on-Demand (Segment-Flow) shells out to a Nextflow '
+                                        'pipeline and requires Nextflow and Conda on PATH. '
+                                        'empanada (local) requires the empanada-dl extra (see '
+                                        'issue #5) -- currently uninstallable on Python 3.11.'},
 
     'log_sigma':{'label': 'Sigma',
                'widget_type': 'FloatSpinBox',
