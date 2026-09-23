@@ -145,7 +145,7 @@ Alternatively, they can be run individually with the numbered widgets.
    - **Apply size filter to segmentation**: remove objects whose volume falls outside a percentile range, set by **Lower filter threshold** and **Upper filter threshold** (percentiles, default 5–95).
 3. **Point Cloud Sampling**
    - **Fluorescence Microscopy (FM) Segmentation** and **Electron Microscopy (EM) Segmentation**: the inputs for this step. Filled in automatically by the steps above, or pick existing Labels layers.
-   - **Sampling Frequency**: keep every *n*th point sampled from the segmentation edges. **Higher values give fewer points**, which is faster and uses less memory.
+   - **Sampling Frequency**: roughly the percentage of segmentation-edge points to keep (the default, 3, keeps about 1 in 33). **Higher values give more points**: more detail, but slower and more memory.
    - **Sigma**: sigma of the Canny edge filter used to find segmentation edges.
 4. **Point Cloud Registration**
    - **Fluorescence Microscopy (FM) Point Cloud** and **Electron Microscopy (EM) Point Cloud**: the inputs for this step.
