@@ -256,90 +256,12 @@ Testing leads, because everything after it is measured against the baseline it c
 3. Bump packaging (§1.1–1.3) and get a clean install on Python 3.11 in a napari 0.6.6 env; run the suite and adjust tolerances where dependency-driven numerical drift is acceptable.
 4. Fix private-import and magicgui issues (§2) until the suite and a manual run pass on the sample data.
 5. Add the MoBIE exporter as a self-contained, array-based module + optional extra (§3), affine path first (simpler, no resampling), BCPD path second; add the affine-conversion golden test and a tiny end-to-end that writes a project and runs `mobie.validate_project`.
-6. Extract the `clemreg` core package and repoint `napari-clemreg` at it (§6); the suite from step 2 is the acceptance gate. Split the tests: pure tests to core, widget tests to the plugin.
+6. Extract the `clemreg` core package and repoint `napari-clemreg` at it. Now planned in [docs/design/package-split.md](design/package-split.md), which also changes the order of steps 5 and 6: the split comes first, then MoBIE directly in the core.
 7. Docs: update README/tutorial with the new output option, the `[mobie]` extra, and the two-package install.
 
 ## 6. Splitting into two packages: `clemreg` core + `napari-clemreg` widget
 
-Goal: two installable distributions.
-
-- **`clemreg`** (import name `clemreg`) — pure-Python pipeline: FM/EM segmentation, point-cloud sampling, registration, warping, MoBIE export. Operates on numpy arrays + lightweight metadata; **no napari, Qt or magicgui**. Enables headless/batch use (the existing `notebooks/clemreg_batch_mode.ipynb` is evidence this is already wanted), scripting, and fast tests.
-- **`napari-clemreg`** (import name `napari_clemreg`) — the napari plugin: widgets, npe2 manifest, reader, sample data, `on_init_specs`, and thin adapters that unwrap layers → arrays, call `clemreg`, and rewrap results. Depends on `clemreg`.
-
-### 6.1 Coupling assessment — why this is feasible
-
-The numerics are already numpy/scipy/open3d/probreg based. napari types are used as **thin wrappers** — reading `.data`/`.metadata`/`.colormap`/`.blending`, constructing `Image`/`Labels`/`Points`, and `get_linked_layers`. So this is a boundary-relocation exercise, not a rewrite. Every `clemreg/` module except the empanada segmenter and `on_init_specs` currently imports napari, but almost always superficially.
-
-Per-module disposition (`napari_clemreg/clemreg/`):
-
-| Module | Napari usage today | Target |
-|---|---|---|
-| `warp_image_volume.py` — private math (`_make_warp`, `_warp_images`, `_make_inverse_warp`, `_trilinear_interpolation`, `_warp_image_volume_affine`) | none (pure numpy/scipy) | **core**, drop `Image`/`Points` type hints |
-| `warp_image_volume.py` — public `warp_image_volume` / `..._from_list` | takes `Image`/`Points`, uses `.colormap`/`.blending`/`get_linked_layers`, builds `Image` | split: array warp → core; layer/link handling → widget |
-| `point_cloud_registration.py` — `point_cloud_registration` | `PointsData` (= ndarray alias) | **core** (trivial) |
-| `point_cloud_registration.py` — `_add_data(return_value, viewer)` | uses viewer | **widget** |
-| `point_cloud_sampling.py` | takes `Labels`, reads `.data` | **core**, take array |
-| `log_segmentation.py` | takes `Image`, reads `.data`; imports `thread_worker` (unused for the pure fn) | **core**, take array, drop the Qt import |
-| `empanada_segmentation.py` | already array-based (`input=Fixed_Image.data`) | **core** as-is |
-| `mask_roi.py` | takes `Shapes` crop mask, reads `crop_mask.data` | **core**, pass polygon vertices array + z range (widget extracts from `Shapes`) |
-| `data_preprocessing.py` — `_make_isotropic`, `_zoom_values`, `get_pixelsize` | array/dict based | **core** |
-| `data_preprocessing.py` — `make_isotropic`, `return_isotropic_image_list`, `_make_isotropic_v1` | take `Image`, mutate `.data`, use `get_linked_layers` | de-napari-fy: core takes arrays; channel/link assembly → widget |
-| `widget_components.py` | heavy: `thread_worker`, `link_layers`, `Labels`/`Points`, magicgui | orchestration → a napari-free `run_pipeline(...)` in core; threading/layer glue stays in **widget** |
-| `on_init_specs.py`, `sample_data.py`, `_reader.py`, `widgets/*`, `napari.yaml` | UI/plugin | **widget** |
-
-### 6.2 Proposed napari-free API boundary (what the widget calls)
-
-```python
-# clemreg — no napari imports anywhere
-segment_fm(array, sigma, threshold, filter=...) -> label_array
-segment_em(array, axis) -> label_array
-sample_point_cloud(labels, every_k, voxel_size, sigma) -> ndarray
-register_point_clouds(moving, fixed, algorithm, max_iter, ...) -> Transform   # affine matrix OR TPS control points
-warp_volume(array, transform, output_shape, order, ...) -> ndarray
-run_clemreg(fm, em, params) -> Result        # one-shot headless pipeline
-to_mobie_project(result, path, ...)          # §3
-```
-
-The widget's remaining job shrinks to: unwrap layers → arrays, drive the `thread_worker` orchestration, rewrap results into layers, add to viewer, and handle `get_linked_layers` (an inherently napari concept — core instead receives an explicit list of per-channel arrays). Represent pixel size as an explicit numeric type in core (e.g. a `PixelSize(z, y, x, unit)` dataclass); keep the `pint`-string parsing that `on_init` does in the widget.
-
-### 6.3 Repo / distribution layout
-
-Recommend a **monorepo with two packages** (src layout) initially — one issue tracker, shared CI, coordinated changes, no version-lockstep pain while APIs are still moving:
-
-```
-napari-clemreg/              # keep repo name + URL for continuity
-  packages/
-    clemreg/                 # -> distribution "clemreg"
-      pyproject.toml
-      src/clemreg/...
-    napari-clemreg/          # -> distribution "napari-clemreg"
-      pyproject.toml          #   depends on clemreg>=X,<Y
-      src/napari_clemreg/...
-```
-
-Two separate repos are an option if release cadences genuinely diverge, but that's a decision to defer. Either way, move packaging to `pyproject.toml` (PEP 621) as part of this.
-
-### 6.4 Packaging & tests
-
-- **Core deps:** numpy, scipy, scikit-image, open3d, probreg, transforms3d, connected-components-3d, torch, empanada-dl, tifffile, h5py, tqdm (+ pint if unit handling stays in core). MoBIE as an extra: `clemreg[mobie]`.
-- **Widget deps:** `clemreg`, `napari>=0.6.6`, `magicgui>=0.8.3`, `qtpy`. The npe2 entry point and `napari.yaml` live here.
-- **Tests split:** pure-numpy tests move to core (fast, no Qt/xvfb — big CI win); widget tests stay with `napari-clemreg` (`pytest-qt`, `make_napari_viewer`).
-- Update the batch notebook to `import clemreg` directly — the clearest demonstration of the headless payoff.
-
-### 6.5 Backwards compatibility
-
-Import paths change: `napari_clemreg.clemreg.*` → `clemreg.*`. For one release, keep shim re-exports in `napari_clemreg.clemreg` that import from `clemreg` and emit a `DeprecationWarning`, so anyone importing internals isn't broken immediately.
-
-### 6.6 Where it sits in the roadmap
-
-Do the split **after** the Python 3.11 / napari 0.6.6 compat work (§1–2) lands and tests pass — refactor known-good code rather than debugging two things at once. But build the MoBIE exporter (§3) directly in the core package so it isn't relocated later. Suggested revised order: §1–2 (modernise) → §3 affine-path MoBIE exporter written in a core-shaped module → §6 extract the core package and repoint the widget → §3 BCPD path + validation.
-
-### 6.7 Risks specific to the split
-
-- **Multi-channel / linked layers:** `get_linked_layers` semantics must be reproduced by having the widget assemble the channel list before calling core; get this wrong and multi-channel FM warps silently drop channels.
-- **Unit handling:** decide once whether nm/µm conversion lives in core (recommended: core takes explicit numbers) or the widget; the current `pint`-string approach is widget-flavoured.
-- **`sample_data`:** downloads + ImageJ-style metadata construction are napari-flavoured; keep in the widget or a napari-free `clemreg.data` submodule.
-- **Two version streams** to keep in step via the `>=,<` pin from `napari-clemreg` on `clemreg`.
+**Superseded (2026-09-23)** by [docs/design/package-split.md](design/package-split.md). That doc is the current design: the boundary, the types and errors, the layout, the phases and a decisions log. Status is tracked on [#7](https://github.com/martlj/napari-clemreg/issues/7) and its phase sub-issues. This section was written on 2026-09-21, before Segment-Flow, the per-step buttons, native-resolution warping and bioio. Its original text is in git history.
 
 ## 7. Repository & release strategy
 
