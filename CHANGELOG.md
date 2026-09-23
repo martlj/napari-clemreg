@@ -20,7 +20,7 @@ Merged into `modernisation` since 0.5.0, not yet released. Proposed as **0.6.0**
 - README: the install instructions now use the extras (`pip install -e ".[segment-flow]" pyqt6`) instead of a hand-written dependency list, a new section explains the current state of EM segmentation (Segment-Flow by default, `empanada-dl` blocked on Python 3.11), and the Run Registration parameter list matches the current widget ([PR #52](https://github.com/martlj/napari-clemreg/pull/52)).
 
 ### Fixed
-- `pint` is now a declared dependency (`pint >= 0.21`). The plugin imports it directly for the pixel-size fields, but it was only installed because napari requires it, and napari's floor (`pint>=0.17`) allows versions without `Quantity.to_preferred`, which the plugin calls when reading pixel sizes.
+- `pint` is now a declared dependency (`pint >= 0.21`). The plugin imports it directly for the pixel-size fields, but it was only installed because napari requires it, and napari's floor (`pint>=0.17`) allows versions without `Quantity.to_preferred`, which the plugin calls when reading pixel sizes ([PR #65](https://github.com/martlj/napari-clemreg/pull/65)).
 - README: the **Sampling Frequency** and **Voxel Size** descriptions had their effect backwards. Higher values of either give *fewer* points and use less memory. The size filter is now correctly described as percentiles ([PR #52](https://github.com/martlj/napari-clemreg/pull/52)).
 
 ### Development
