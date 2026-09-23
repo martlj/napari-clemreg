@@ -122,7 +122,7 @@ def on_init(widget):
                             'run_registration_and_warping_button'])
     group_into_collapsible(widget, 'Image Warping',
                            ['warping_interpolation_order', 'warping_approximate_grid',
-                            'warping_sub_division_factor'])
+                            'warping_sub_division_factor', 'warping_output_resolution'])
 
     # Cheap insurance for the same "doesn't shrink back down" behaviour
     # on the few small toggles left (1-2 widgets each) -- harmless even
@@ -465,6 +465,7 @@ def _wire_step_buttons(widget):
                 warping_interpolation_order=widget.warping_interpolation_order.value,
                 warping_approximate_grid=widget.warping_approximate_grid.value,
                 warping_sub_division_factor=widget.warping_sub_division_factor.value,
+                warping_output_resolution=widget.warping_output_resolution.value,
                 registration_direction=widget.registration_direction.value)
 
         _thread()
@@ -502,6 +503,7 @@ def _wire_step_buttons(widget):
                warping_interpolation_order=specs['warping_interpolation_order'],
                warping_approximate_grid=specs['warping_approximate_grid'],
                warping_sub_division_factor=specs['warping_sub_division_factor'],
+               warping_output_resolution=specs['warping_output_resolution'],
                save_json=specs['save_json'],
                save_json_path=specs['save_json_path'],
                visualise_intermediate_results=specs['visualise_intermediate_results'],
@@ -568,6 +570,7 @@ def make_run_registration(
         warping_interpolation_order,
         warping_approximate_grid,
         warping_sub_division_factor,
+        warping_output_resolution,
 
         save_json,
         save_json_path,
@@ -601,6 +604,7 @@ def make_run_registration(
     warping_interpolation_order
     warping_approximate_grid
     warping_sub_division_factor
+    warping_output_resolution
     Moving_Segmentation
     Fixed_Segmentation
     Moving_Points
@@ -723,6 +727,7 @@ def make_run_registration(
                                 'warping_interpolation_order',
                                 'warping_approximate_grid',
                                 'warping_sub_division_factor',
+                                'warping_output_resolution',
                                 'registration_direction']
 
         reg_and_warping_kwargs = dict((k, kwargs[k]) for k in reg_and_warping_keys if k in kwargs)
@@ -784,6 +789,7 @@ def make_run_registration(
         warping_interpolation_order=warping_interpolation_order,
         warping_approximate_grid=warping_approximate_grid,
         warping_sub_division_factor=warping_sub_division_factor,
+        warping_output_resolution=warping_output_resolution,
         registration_direction=registration_direction
     )
     joiner = RegistrationThreadJoiner(worker_function=_run_registration_thread,

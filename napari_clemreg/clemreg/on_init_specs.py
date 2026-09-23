@@ -111,6 +111,23 @@ specs = {
                                  'min': 1, 'max': 10, 'step': 1,
                                  'value': 1},
 
+    # Default keeps the warped FM output near its own native pixel size
+    # rather than forcing it onto EM's (usually much finer) grid --
+    # overlay in the viewer is handled via the layer's `scale`, not
+    # matching pixel counts. 'EM pixel grid (legacy)' reproduces the
+    # pre-existing behaviour, for anyone who wants the FM data actually
+    # resampled onto EM's own pixel grid (e.g. for pixel-exact export).
+    'warping_output_resolution':{'label': 'Output Pixel Size',
+                               'widget_type': 'ComboBox',
+                               'choices': ['Native LM resolution', 'EM pixel grid (legacy)'],
+                               'value': 'Native LM resolution',
+                               'tooltip': 'Native LM resolution (default): warp the FM image onto '
+                                          'a pixel grid close to its own native resolution -- lighter, '
+                                          'avoids unnecessary upsampling. The result is placed correctly '
+                                          'relative to the EM image in the viewer via the layer\'s scale. '
+                                          'EM pixel grid (legacy): resample the warped result onto the '
+                                          'EM image\'s own (finer) pixel grid.'},
+
     'save_json':{'label': 'Save parameters',
                'widget_type': 'CheckBox',
                'value': False},
