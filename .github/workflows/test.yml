@@ -79,6 +79,9 @@ jobs:
         run: tox
         env:
           PLATFORM: ${{ matrix.platform }}
+          # Real-Viewer smoke tests (test_real_viewer.py) need a real X server
+          # and GL context, which pytest-xvfb provides on Linux only.
+          CLEMREG_REAL_VIEWER: ${{ runner.os == 'Linux' && '1' || '' }}
 
       - name: Upload coverage to Codecov
         if: matrix.platform == 'ubuntu-latest' && matrix.python-version == '3.11'
