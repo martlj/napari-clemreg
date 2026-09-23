@@ -68,7 +68,18 @@ def mark_auto_set(field_widget, value) -> None:
     it amber to signal that -- distinct from show_error()'s red, which
     already means "something's wrong" elsewhere in this plugin; this
     just means "review if this isn't what you wanted".
+
+    Explicitly refreshes the field's own choices first: a magicgui
+    CategoricalWidget's `.value` setter raises ValueError for a value
+    not already in `.choices` (confirmed directly, no fallback), and
+    `value` here is typically a layer that was only just added to the
+    viewer -- relying on some other, external mechanism to have already
+    refreshed choices by this point (e.g. napari's dock-widget-level
+    layers.events wiring, whose own timing/ordering relative to this
+    call isn't guaranteed) is fragile; reset_choices() here is cheap and
+    makes this call self-sufficient regardless.
     """
+    field_widget.reset_choices()
     field_widget.value = value
     field_widget.native.setStyleSheet(_AUTO_SET_STYLESHEET)
 

@@ -239,6 +239,17 @@ def _wire_step_buttons(widget):
     from napari.viewer import current_viewer
     from ..clemreg._qt_layout import mark_auto_set, clear_highlight_on_user_select
 
+    def _with_button_reset(button, fn):
+        """Wrap a worker's returned/errored callback to re-enable `button`
+        first -- matches AIoD's own aiod_napari (nxf.py's nxf_run_btn)
+        pattern of disabling a run button for the duration of its own
+        run, rather than leaving every section runnable mid-pipeline.
+        """
+        def wrapped(*args):
+            button.native.setEnabled(True)
+            fn(*args)
+        return wrapped
+
     # Applies regardless of whether a downstream field's value came from
     # a single section's own "Run this step" button or from the full
     # "Register" run -- the auto-set highlight means the same thing
@@ -284,15 +295,6 @@ def _wire_step_buttons(widget):
                 fixed_image.data.shape))
             return
 
-        @thread_worker
-        def _thread():
-            seg_volume = run_fixed_segmentation(Fixed_Image=fixed_image,
-                                                em_seg_axis=widget.em_seg_axis.value,
-                                                em_segmentation_backend=widget.em_segmentation_backend.value)
-            if isinstance(seg_volume, str):
-                raise ValueError('No mitochondria found in Fixed Image (EM)')
-            return Labels(seg_volume.astype(np.int64), name='EM_segmentation', metadata=fixed_image.metadata)
-
         def _done(layer):
             viewer = current_viewer()
             if viewer is not None:
@@ -302,10 +304,22 @@ def _wire_step_buttons(widget):
         def _errored(exc):
             show_error(f'EM segmentation failed: {exc}')
 
-        worker = _thread()
-        worker.returned.connect(_done)
-        worker.errored.connect(_errored)
-        worker.start()
+        button = widget.run_em_segmentation_button
+        button.native.setEnabled(False)
+
+        @thread_worker(connect={
+            'returned': _with_button_reset(button, _done),
+            'errored': _with_button_reset(button, _errored),
+        })
+        def _thread():
+            seg_volume = run_fixed_segmentation(Fixed_Image=fixed_image,
+                                                em_seg_axis=widget.em_seg_axis.value,
+                                                em_segmentation_backend=widget.em_segmentation_backend.value)
+            if isinstance(seg_volume, str):
+                raise ValueError('No mitochondria found in Fixed Image (EM)')
+            return Labels(seg_volume.astype(np.int64), name='EM_segmentation', metadata=fixed_image.metadata)
+
+        _thread()
 
     def _run_fm_segmentation_step():
         from ..clemreg.widget_components import run_moving_segmentation
@@ -330,7 +344,22 @@ def _wire_step_buttons(widget):
                 show_error("WARNING: Your mask size exceeds the size of the image.")
                 return
 
-        @thread_worker
+        def _done(layer):
+            viewer = current_viewer()
+            if viewer is not None:
+                viewer.add_layer(layer)
+            mark_auto_set(widget.Moving_Segmentation, layer)
+
+        def _errored(exc):
+            show_error(f'FM segmentation failed: {exc}')
+
+        button = widget.run_fm_segmentation_button
+        button.native.setEnabled(False)
+
+        @thread_worker(connect={
+            'returned': _with_button_reset(button, _done),
+            'errored': _with_button_reset(button, _errored),
+        })
         def _thread():
             seg_volume_mask = run_moving_segmentation(Moving_Image=moving_image,
                                                        Mask_ROI=mask_roi,
@@ -345,19 +374,7 @@ def _wire_step_buttons(widget):
                 raise ValueError('No mitochondria found in Moving Image (FM)')
             return Labels(seg_volume_mask.astype(np.uint32), name='FM_segmentation', metadata=moving_image.metadata)
 
-        def _done(layer):
-            viewer = current_viewer()
-            if viewer is not None:
-                viewer.add_layer(layer)
-            mark_auto_set(widget.Moving_Segmentation, layer)
-
-        def _errored(exc):
-            show_error(f'FM segmentation failed: {exc}')
-
-        worker = _thread()
-        worker.returned.connect(_done)
-        worker.errored.connect(_errored)
-        worker.start()
+        _thread()
 
     def _run_point_cloud_sampling_step():
         from ..clemreg.widget_components import run_point_cloud_sampling
@@ -367,19 +384,6 @@ def _wire_step_buttons(widget):
         if moving_segmentation is None or fixed_segmentation is None:
             show_error("WARNING: You have not inputted both a Moving_Segmentation and Fixed_Segmentation")
             return
-
-        @thread_worker
-        def _thread():
-            return run_point_cloud_sampling(
-                Moving_Segmentation=moving_segmentation,
-                Fixed_Segmentation=fixed_segmentation,
-                moving_image_pixelsize_xy=widget.moving_image_pixelsize_xy.value,
-                moving_image_pixelsize_z=widget.moving_image_pixelsize_z.value,
-                fixed_image_pixelsize_xy=widget.fixed_image_pixelsize_xy.value,
-                fixed_image_pixelsize_z=widget.fixed_image_pixelsize_z.value,
-                point_cloud_sampling_frequency=widget.point_cloud_sampling_frequency.value,
-                voxel_size=widget.registration_voxel_size.value,
-                point_cloud_sigma=widget.point_cloud_sigma.value)
 
         def _done(result):
             moving_points, fixed_points = result
@@ -393,10 +397,26 @@ def _wire_step_buttons(widget):
         def _errored(exc):
             show_error(f'Point cloud sampling failed: {exc}')
 
-        worker = _thread()
-        worker.returned.connect(_done)
-        worker.errored.connect(_errored)
-        worker.start()
+        button = widget.run_point_cloud_sampling_button
+        button.native.setEnabled(False)
+
+        @thread_worker(connect={
+            'returned': _with_button_reset(button, _done),
+            'errored': _with_button_reset(button, _errored),
+        })
+        def _thread():
+            return run_point_cloud_sampling(
+                Moving_Segmentation=moving_segmentation,
+                Fixed_Segmentation=fixed_segmentation,
+                moving_image_pixelsize_xy=widget.moving_image_pixelsize_xy.value,
+                moving_image_pixelsize_z=widget.moving_image_pixelsize_z.value,
+                fixed_image_pixelsize_xy=widget.fixed_image_pixelsize_xy.value,
+                fixed_image_pixelsize_z=widget.fixed_image_pixelsize_z.value,
+                point_cloud_sampling_frequency=widget.point_cloud_sampling_frequency.value,
+                voxel_size=widget.registration_voxel_size.value,
+                point_cloud_sigma=widget.point_cloud_sigma.value)
+
+        _thread()
 
     def _run_registration_and_warping_step():
         from ..clemreg.widget_components import run_point_cloud_registration_and_warping
@@ -413,20 +433,6 @@ def _wire_step_buttons(widget):
             show_error("WARNING: You have not inputted both a Moving_Image and Fixed_Image")
             return
 
-        @thread_worker
-        def _thread():
-            return run_point_cloud_registration_and_warping(
-                Moving_Points=moving_points,
-                Fixed_Points=fixed_points,
-                Moving_Image=moving_image,
-                Fixed_Image=fixed_image,
-                registration_algorithm=widget.registration_algorithm.value,
-                registration_max_iterations=widget.registration_max_iterations.value,
-                warping_interpolation_order=widget.warping_interpolation_order.value,
-                warping_approximate_grid=widget.warping_approximate_grid.value,
-                warping_sub_division_factor=widget.warping_sub_division_factor.value,
-                registration_direction=widget.registration_direction.value)
-
         def _done(result):
             warp_outputs, transformed = result
             viewer = current_viewer()
@@ -441,10 +447,27 @@ def _wire_step_buttons(widget):
         def _errored(exc):
             show_error(f'Registration/warping failed: {exc}')
 
-        worker = _thread()
-        worker.returned.connect(_done)
-        worker.errored.connect(_errored)
-        worker.start()
+        button = widget.run_registration_and_warping_button
+        button.native.setEnabled(False)
+
+        @thread_worker(connect={
+            'returned': _with_button_reset(button, _done),
+            'errored': _with_button_reset(button, _errored),
+        })
+        def _thread():
+            return run_point_cloud_registration_and_warping(
+                Moving_Points=moving_points,
+                Fixed_Points=fixed_points,
+                Moving_Image=moving_image,
+                Fixed_Image=fixed_image,
+                registration_algorithm=widget.registration_algorithm.value,
+                registration_max_iterations=widget.registration_max_iterations.value,
+                warping_interpolation_order=widget.warping_interpolation_order.value,
+                warping_approximate_grid=widget.warping_approximate_grid.value,
+                warping_sub_division_factor=widget.warping_sub_division_factor.value,
+                registration_direction=widget.registration_direction.value)
+
+        _thread()
 
     widget.run_em_segmentation_button.clicked.connect(_run_em_segmentation_step)
     widget.run_fm_segmentation_button.clicked.connect(_run_fm_segmentation_step)
