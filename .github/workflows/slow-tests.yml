@@ -3,13 +3,25 @@ name: slow tests
 # Runs the tests marked `slow`, which the per-push `tests` workflow skips:
 # real sample-data downloads, reader checks against the real Zenodo files,
 # and the end-to-end Run Registration test (test_gui_end_to_end.py).
-# Weekly, and on demand from the Actions tab.
+# Runs after every merge into `modernisation` (skipping docs-only
+# changes), weekly, and on demand from the Actions tab.
+#
+# GitHub only runs `schedule` and `workflow_dispatch` from the default
+# branch (`main`), which stays a clean mirror of upstream until the
+# modernisation work goes back in (#1). Until then, the `push` trigger
+# is the one that actually runs.
 #
 # The real Segment-Flow run (test_segment_flow_segmentation.py) still
 # skips here, since the runner has no Nextflow. Run that one by hand
 # before a release.
 
 on:
+  push:
+    branches:
+      - modernisation
+    paths-ignore:
+      - "**.md"
+      - "docs/**"
   schedule:
     - cron: "0 5 * * 1"  # Mondays, 05:00 UTC
   workflow_dispatch:
