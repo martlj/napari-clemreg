@@ -85,6 +85,17 @@ The root package (`napari-clemreg`, the napari plugin) is defined via `setup.cfg
 
 For EM segmentation on Python 3.11 today, use the `segment-flow` extra instead (`clemreg/segment_flow_segmentation.py`) — see the widgets' `EM Segmentation Backend` dropdown.
 
+## CHANGELOG and ROADMAP
+
+Keep [CHANGELOG.md](CHANGELOG.md) and [ROADMAP.md](ROADMAP.md) in step with every merged PR (standing instruction, 2026-09-23).
+
+**In each PR you open:** update both files in the PR itself, so they're correct the moment it merges.
+- CHANGELOG: add an entry under `[Unreleased]`, linking the PR and issue. Use `Added`/`Changed`/`Fixed`/`Removed` for anything users would notice. Tests, CI and project docs go under `Development`. Mark breaking changes `**Breaking:**`, and check that the `[Unreleased]` header's proposed version still fits the bump rules below.
+- ROADMAP: remove or rewrite anything the PR finishes, and add follow-ups, open decisions or bugs it uncovers, with issue links. The ROADMAP only lists what's still to do. What's done belongs in the CHANGELOG.
+- If the PR closes an issue, or finishes a sub-issue of #7, check that the issue (and the [package split design](docs/design/package-split.md), if relevant) agrees.
+
+**After a merge:** when you're told a PR has merged, and at the start of a session before other work, cross-check. List the PRs merged into `modernisation` since the newest PR linked in the CHANGELOG (`gh pr list -R martlj/napari-clemreg --base modernisation --state merged`). Also look for ROADMAP items those PRs finished and issues they fixed that are still open. Fix any gaps in one catch-up PR. Don't merge it, as with any other PR.
+
 ## Versioning
 
 `setup.cfg`'s `version` (currently `0.2.1`) hasn't been bumped since this fork's modernisation work began, despite several release-worthy batches of work having landed. See [CHANGELOG.md](CHANGELOG.md)'s status note and [issue #1](https://github.com/martlj/napari-clemreg/issues/1) for the real release/versioning decision, which hasn't been made yet.

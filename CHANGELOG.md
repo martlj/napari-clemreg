@@ -8,15 +8,27 @@ This changelog covers the modernisation fork's own work only (starting from the 
 
 ## [Unreleased]
 
-Open PRs, not yet merged into `modernisation`. Proposed as **0.6.0**, a minor bump: it adds features (per-step buttons, `bioio` metadata) and changes the default warped-LM output resolution.
+Merged into `modernisation` since 0.5.0, not yet released. Proposed as **0.6.0**, a minor bump: it adds features (per-step buttons, `bioio` metadata) and changes the default warped-LM output resolution.
 
 ### Added
-- EM segmentation backend dropdown now uses `bioio` for pixel-size metadata extraction instead of hand-parsing ImageJ-specific TIFF tags, so it isn't limited to ImageJ-written TIFFs ([#37](https://github.com/martlj/napari-clemreg/issues/37), [PR #38](https://github.com/martlj/napari-clemreg/pull/38)).
+- The TIFF reader now uses `bioio` to read pixel sizes, instead of hand-parsing ImageJ-specific TIFF tags, so pixel sizes are picked up from TIFFs that weren't written by ImageJ ([#37](https://github.com/martlj/napari-clemreg/issues/37), [PR #38](https://github.com/martlj/napari-clemreg/pull/38)).
 - Each stage of the combined "Run Registration" widget (EM Segmentation, LoG Segmentation, Point Cloud Sampling, Point Cloud Registration + Warping) has its own "Run this step" button, independent of the master "Register" button — lets a pre-existing layer be substituted to start from an intermediate step. Completing a step auto-sets and amber-highlights the next step's input ([#35](https://github.com/martlj/napari-clemreg/issues/35), [PR #36](https://github.com/martlj/napari-clemreg/pull/36)).
 - Terminal prints the total elapsed time (`mm:ss`) for a full "Register" run, for benchmarking ([PR #36](https://github.com/martlj/napari-clemreg/pull/36)).
 
 ### Changed
 - Warped LM (moving image) output now defaults to LM's own native pixel resolution instead of being forced onto EM's (much finer) pixel grid, placed correctly via the layer's `scale` rather than matching pixel counts. An "EM pixel grid (legacy)" option keeps the old behaviour. For Rigid/Affine CPD, the registration matrix is rescaled so the warp runs in a single interpolation pass directly from raw data ([#33](https://github.com/martlj/napari-clemreg/issues/33), [PR #34](https://github.com/martlj/napari-clemreg/pull/34)).
+- README: the install instructions now use the extras (`pip install -e ".[segment-flow]" pyqt6`) instead of a hand-written dependency list, a new section explains the current state of EM segmentation (Segment-Flow by default, `empanada-dl` blocked on Python 3.11), and the Run Registration parameter list matches the current widget ([PR #52](https://github.com/martlj/napari-clemreg/pull/52)).
+
+### Fixed
+- README: the **Sampling Frequency** and **Voxel Size** descriptions had their effect backwards. Higher values of either give *fewer* points and use less memory. The size filter is now correctly described as percentiles ([PR #52](https://github.com/martlj/napari-clemreg/pull/52)).
+
+### Development
+Changes to tests, CI and project docs, with no effect on the installed package.
+- Widget behaviour tests: every widget and **Run this step** button is run against a napari `ViewerModel` with stubbed pipeline functions. Open GUI bugs (#47, #48, #49, #50, #53) are pinned as strict expected failures ([PR #54](https://github.com/martlj/napari-clemreg/pull/54)).
+- Real-Viewer smoke tests on Linux CI, a slow end-to-end test of Run Registration on the real sample data, and a `slow tests` workflow that runs `--run-slow` after merges, weekly and on demand ([PR #55](https://github.com/martlj/napari-clemreg/pull/55), [PR #63](https://github.com/martlj/napari-clemreg/pull/63)).
+- `modernisation` is now the fork's default branch, so "Fixes #N" closes issues on merge and scheduled workflows run ([PR #56](https://github.com/martlj/napari-clemreg/pull/56)).
+- Package split design in [docs/design/package-split.md](docs/design/package-split.md), replacing §6 of the plan, with phases tracked in #57–#61 ([PR #62](https://github.com/martlj/napari-clemreg/pull/62)).
+- Versioning rules (patch, minor, major, and when to declare 1.0.0), with this changelog's batches renumbered to match ([PR #44](https://github.com/martlj/napari-clemreg/pull/44), [PR #45](https://github.com/martlj/napari-clemreg/pull/45), [PR #46](https://github.com/martlj/napari-clemreg/pull/46)).
 
 ## [0.5.0] — AI-on-Demand Segment-Flow integration (2026-09-22 — 2026-09-23)
 
