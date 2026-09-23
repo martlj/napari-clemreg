@@ -6,6 +6,29 @@ from scipy import ndimage
 import numpy as np
 import time
 
+def _to_float(value, default=1):
+    """A pixel size from metadata as a float.
+
+    Metadata values are file content, so they're parsed as numbers only
+    (a plain decimal such as '0.13', or a fraction such as '1/3'), never
+    evaluated. Anything else falls back to `default`, as missing
+    metadata does.
+    """
+    from fractions import Fraction
+
+    if not isinstance(value, str):
+        return value
+    try:
+        return float(value)
+    except ValueError:
+        pass
+    try:
+        return float(Fraction(value.strip()))
+    except (ValueError, ZeroDivisionError):
+        print(f'Could not parse pixel size {value!r} from metadata; using {default}')
+        return default
+
+
 def get_pixelsize(metadata: dict):
     """ Parse pixel sizes from image metadata
 
@@ -55,10 +78,7 @@ def get_pixelsize(metadata: dict):
         unit = 'micron'
         print('ImageJ metdata not recorded in metadata')
 
-    return (eval(x_pxlsz) if isinstance(x_pxlsz, str) else x_pxlsz,
-            eval(y_pxlsz) if isinstance(y_pxlsz, str) else y_pxlsz,
-            eval(z_pxlsz) if isinstance(z_pxlsz, str) else z_pxlsz,
-            unit)
+    return (_to_float(x_pxlsz), _to_float(y_pxlsz), _to_float(z_pxlsz), unit)
 
 
 def _zoom_values(xy, z, xy_ref, z_ref):
