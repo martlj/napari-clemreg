@@ -83,6 +83,31 @@ For EM segmentation on Python 3.11 today, use the `segment-flow` extra instead (
 
 ## Versioning
 
-`setup.cfg`'s `version` (currently `0.2.1`) hasn't been bumped since this fork's modernisation work began, despite several minor-version-worthy batches of work having landed — see [CHANGELOG.md](CHANGELOG.md)'s status note and [issue #1](https://github.com/martlj/napari-clemreg/issues/1) for the real release/versioning decision, not yet made.
+`setup.cfg`'s `version` (currently `0.2.1`) hasn't been bumped since this fork's modernisation work began, despite several release-worthy batches of work having landed. See [CHANGELOG.md](CHANGELOG.md)'s status note and [issue #1](https://github.com/martlj/napari-clemreg/issues/1) for the real release/versioning decision, which hasn't been made yet.
 
-When a merged (or about-to-be-merged) change is new-feature- or otherwise minor-version-worthy, suggest a follow-up commit that bumps `setup.cfg`'s `version` (SemVer) and adds the corresponding entry to `CHANGELOG.md` — don't apply it unilaterally, since versioning/release timing is the user's call.
+When a merged (or about-to-be-merged) change is release-worthy, suggest a follow-up commit that bumps `setup.cfg`'s `version` and adds the matching `CHANGELOG.md` entry. Don't apply it unilaterally: versioning and release timing are the user's call. Every suggestion must say **which level (patch, minor or major) and why**, using the rules below. Don't default to minor.
+
+### Choosing the bump level
+
+The "public surface" here means: the widgets and their parameters, the `napari.yaml` command/widget/sample-data IDs, importable Python APIs, the install requirements and extras (Python version, `install_requires`, extra names), and the outputs users get by default (layer shapes, scales, file formats).
+
+- **Patch** (`x.y.Z`): bug fixes only, with no new features and no change to the public surface. A fix that restores the documented or intended behaviour is a patch, even if it changes results.
+- **Minor** (`x.Y.0`): new features, new options or new backends added in a backwards-compatible way, deprecations, and changed defaults that still leave the old behaviour available as an option.
+- **Major** (`X.0.0`): anything that breaks existing users, such as removing or renaming a widget, parameter, extra or import path, raising the minimum Python, adding a hard dependency that won't install somewhere it used to, or changing default outputs with no way back to the old ones.
+- **No bump:** docs, CI, tests or refactors that ship nothing different to users. These go in the next release's entry, if they're worth mentioning at all.
+
+A batch takes the highest level of any change in it. A fix to a feature added in the same unreleased batch is part of that feature, not a separate patch.
+
+**While pre-1.0** (the current state; plan §7.7): anything that would be a major bump is a **minor** bump instead. Flag it as `**Breaking:**` in the CHANGELOG entry, and still bump patch for fix-only batches. SemVer's 0.x rules allow anything to change, but keeping the patch/minor distinction tells users which upgrades are safe.
+
+### When to declare 1.0.0
+
+1.0.0 is a promise that the public surface is stable. It doesn't measure how much has changed. Suggest it only once all of these are true, and say which of them still aren't:
+
+1. The package split ([#7](https://github.com/martlj/napari-clemreg/issues/7)) has landed and settled, and the public API of `clemreg` (the core package) and of `napari_clemreg` is written down (what's public and what's internal).
+2. No known breaking changes are still queued on [ROADMAP.md](ROADMAP.md). For example, the OME-Zarr work must either have landed or be designed so it only adds to the current behaviour.
+3. Every documented install path resolves on the supported Pythons: the `empanada` extra is fixed or dropped ([#5](https://github.com/martlj/napari-clemreg/issues/5)).
+4. Widget-level tests exist, so the stability promise can actually be checked in CI.
+5. The release is cut from the canonical upstream or Crick-org repo, not this fork ([#1](https://github.com/martlj/napari-clemreg/issues/1), plan §7.7), so the tag gets the Zenodo DOI and `CITATION.cff`.
+
+After the split, `clemreg` and `napari-clemreg` are versioned independently. Each reaches 1.0 on its own merits, with criterion 1 applied to that package's own API.
