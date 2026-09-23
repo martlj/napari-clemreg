@@ -6,10 +6,9 @@ See [CHANGELOG.md](CHANGELOG.md) for what's already landed.
 
 ## Known GUI bugs
 
-Each is pinned by a strict expected-failure test (in `test_widget_behaviour.py` or `test_pipeline_baseline.py`). Phase 1 of the package split (#58) fixes #47 and #50 by design.
+Each is pinned by a strict expected-failure test (in `test_widget_behaviour.py` or `test_pipeline_baseline.py`). Phase 1 of the package split (#58) fixes #47 by design.
 
 - **Save parameters crashes Register, and Parameters from JSON does nothing** ([#47](https://github.com/martlj/napari-clemreg/issues/47)).
-- **Split EM/FM segmentation widgets crash when no segmentation is found** ([#50](https://github.com/martlj/napari-clemreg/issues/50)).
 - **Prediction Across Three Axis is shown with Segment-Flow, where it does nothing** ([#48](https://github.com/martlj/napari-clemreg/issues/48)).
 - **Voxel Size sits in the wrong section** ([#49](https://github.com/martlj/napari-clemreg/issues/49)).
 - **Registration direction EM → FM always crashes** ([#68](https://github.com/martlj/napari-clemreg/issues/68)), in every release so far. Fixing it needs a decision on what EM → FM output should look like.

@@ -47,21 +47,22 @@ def fixed_segmentation_widget(viewer: 'napari.viewer.Viewer',
     """
     import numpy as np
 
-    @thread_worker
+    def _add_data(return_value):
+        viewer.add_layer(return_value)
+
+    def _errored(exc):
+        # Includes NoSegmentationError when nothing is found (#50).
+        show_error(f'EM segmentation failed: {exc}')
+
+    # Handlers passed at creation (not connected afterwards), so superqt
+    # doesn't also re-raise the error; the worker starts itself.
+    @thread_worker(connect={'returned': _add_data, 'errored': _errored})
     def _run_fixed_thread(**kwargs):
         from ..clemreg.widget_components import run_fixed_segmentation
-        #Increasing levels of CLAHE
 
         seg_volume = run_fixed_segmentation(**kwargs)
 
         return Labels(seg_volume.astype(np.int64), **{'name': 'EM_segmentation', 'metadata': Fixed_Image.metadata})
-
-    def _add_data(return_value):
-        if isinstance(return_value, str):
-            show_error('WARNING: No mitochondria in Fixed Image')
-            return
-
-        viewer.add_layer(return_value)
 
     if Fixed_Image is None:
         show_error("WARNING: You have not inputted both a fixed and moving image")
@@ -75,11 +76,9 @@ def fixed_segmentation_widget(viewer: 'napari.viewer.Viewer',
         show_error("WARNING: YOUR fixed_image is RGB, your input must be grayscale and 3D")
         return
 
-    worker_fixed = _run_fixed_thread(Fixed_Image=Fixed_Image,
-                                     em_seg_axis=em_seg_axis,
-                                     em_segmentation_backend=em_segmentation_backend)
-    worker_fixed.returned.connect(_add_data)
-    worker_fixed.start()
+    _run_fixed_thread(Fixed_Image=Fixed_Image,
+                      em_seg_axis=em_seg_axis,
+                      em_segmentation_backend=em_segmentation_backend)
 
 
 def fixed_segmentation_dock_widget(napari_viewer: 'napari.viewer.Viewer' = None):

@@ -139,7 +139,16 @@ def moving_segmentation_widget(viewer: 'napari.viewer.Viewer',
     from ..clemreg.widget_components import run_moving_segmentation
     from ..clemreg.mask_roi import mask_area
     
-    @thread_worker
+    def _add_data(return_value):
+        viewer.add_layer(return_value)
+
+    def _errored(exc):
+        # Includes NoSegmentationError when nothing is found (#50).
+        show_error(f'FM segmentation failed: {exc}')
+
+    # Handlers passed at creation (not connected afterwards), so superqt
+    # doesn't also re-raise the error; the worker starts itself.
+    @thread_worker(connect={'returned': _add_data, 'errored': _errored})
     def _run_segmentation_thread(**kwargs):
         seg_volume_mask = run_moving_segmentation(**kwargs)
         seg_volume_mask = Labels(seg_volume_mask.astype(np.uint32),
@@ -147,14 +156,6 @@ def moving_segmentation_widget(viewer: 'napari.viewer.Viewer',
                                  metadata=Moving_Image.metadata)
 
         return seg_volume_mask
-
-
-    def _add_data(return_value):
-        if isinstance(return_value, str):
-            show_error('WARNING: No mitochondria in Moving Image')
-            return
-
-        viewer.add_layer(return_value)
 
     if Moving_Image is None:
         show_error("WARNING: You have not inputted both a fixed and moving image")
@@ -177,20 +178,15 @@ def moving_segmentation_widget(viewer: 'napari.viewer.Viewer',
             show_error("WARNING: Your mask size exceeds the size of the image.")
             return
 
-    worker_moving = _run_segmentation_thread(Moving_Image=Moving_Image,
-                                             Mask_ROI=Mask_ROI,
-                                             z_min=z_min,
-                                             z_max=z_max,
-                                             log_sigma=log_sigma,
-                                             log_threshold=log_threshold,
-                                             filter_segmentation=filter_segmentation,
-                                             filter_size_lower=filter_size_lower,
-                                             filter_size_upper=filter_size_upper)
-    worker_moving.returned.connect(_add_data)
-    # Connect to button to release it
-    # worker_moving.finished.connect(_add_data)
-
-    worker_moving.start()
+    _run_segmentation_thread(Moving_Image=Moving_Image,
+                             Mask_ROI=Mask_ROI,
+                             z_min=z_min,
+                             z_max=z_max,
+                             log_sigma=log_sigma,
+                             log_threshold=log_threshold,
+                             filter_segmentation=filter_segmentation,
+                             filter_size_lower=filter_size_lower,
+                             filter_size_upper=filter_size_upper)
 
 
 def moving_segmentation_dock_widget(napari_viewer: 'napari.viewer.Viewer' = None):

@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
 # coding: utf-8
 import time
+from dataclasses import dataclass
+
 import numpy as np
-from napari.layers import Image, Shapes, Labels
 from skimage import draw
-from typing_extensions import Annotated
-from ..clemreg.data_preprocessing import _make_isotropic
+
+from ._arrays import as_array
+
 
 def mask_area(x, y):
     """ Calculates the area of the mask
@@ -25,70 +27,85 @@ def mask_area(x, y):
     return 0.5 * np.abs(np.dot(x, np.roll(y, 1)) - np.dot(y, np.roll(x, 1)))
 
 
+@dataclass(frozen=True)
+class MaskRoi:
+    """A polygon ROI applied over a range of z slices.
+
+    polygon : (N, 2) array of (y, x) vertices. Wider arrays, such as
+        napari's (z, y, x) shape vertices, are accepted and only the last
+        two columns are used.
+    z_min, z_max : the z slices to keep, as ``z_min <= z < z_max``.
+    """
+    polygon: np.ndarray
+    z_min: int = 0
+    z_max: int = 10
+
+
+def _polygon_from(crop_mask):
+    """(N, 2) (y, x) vertices from an array, or from a Shapes-like object."""
+    if isinstance(crop_mask, np.ndarray):
+        return crop_mask[:, -2:]
+    # Shapes-like (backwards compatibility, decision D4): one shape, with
+    # vertices in `.data`.
+    assert len(crop_mask.data) == 1, 'Crop mask must contain one shape'
+    return np.asarray(crop_mask.data[0])[:, -2:]
+
+
 def mask_roi(input_arr: np.ndarray,
-             crop_mask: Shapes,
-             z_min: Annotated[int, {"min": 0, "max": 10, "step": 1}] = 0,
-             z_max: Annotated[int, {"min": 10, "max": 100,
-                                    "step": 1}] = 10) -> Image:  # Annotated[slice, {"start": 0, "stop": 10, "step": 1}]
-    """ Take crop_mask and mask input
+             crop_mask,
+             z_min: int = 0,
+             z_max: int = 10) -> np.ndarray:
+    """ Zero everything outside a polygon, and outside a range of z slices.
 
     Parameters
     ----------
-    input : napari.layers.Image
-        Image to apply crop to
-    crop_mask : napari.layers.Shapes
-        Mask to be used to crop the image
+    input_arr : np.ndarray
+        Volume to mask, (z, y, x) or (c, z, y, x). An object with the
+        volume in `.data` is also accepted (backwards compatibility).
+    crop_mask : np.ndarray or napari Shapes-like
+        The polygon's vertices, (N, 2) as (y, x); only the last two
+        columns of wider arrays are used. For backwards compatibility, an
+        object with a single shape's vertices in `.data` (e.g. a napari
+        Shapes layer) is also accepted.
     z_min : int
-        Minimum z slice to apply masking to
+        First z slice to keep.
     z_max : int
-        Maximum z slice to apply masking to
+        Keep z slices below this one.
 
     Returns
     -------
-    masked_input : napari.layers.Image
-        Masked image of the original inputted image
+    np.ndarray
+        The masked volume, as integers.
     """
-
-    # Need to add support for multi-channel images
-    # Squeeze array
-    # If 4 dimensions, assume dimension with smallest size is colour channel
-    # Reshape stack to be [channel, z, x, y]
-
-    print(f'Masking with {crop_mask.name} between {z_min} and {z_max}...')
+    print(f'Masking with {getattr(crop_mask, "name", "polygon")} between {z_min} and {z_max}...')
     start_time = time.time()
 
-    if crop_mask.data[0].shape[-1] > 3:
-        crop_mask.data = [mask[:, -3:] for mask in crop_mask.data]
+    polygon = _polygon_from(crop_mask)
+    volume = as_array(input_arr)
 
-    assert len(crop_mask.data) == 1, 'Crop mask must contain one shape'
-
-    top_idx = crop_mask.shape_type.index(
-        'polygon') if 'polygon' in crop_mask.shape_type else crop_mask.shape_type.index('rectangle')
     top_z = z_min
     bot_z = z_max
 
-    temp_idx = 2 if len(input_arr.shape) == 4 else 1
+    temp_idx = 2 if len(volume.shape) == 4 else 1
 
-    binary_mask = draw.polygon2mask(input_arr.shape[temp_idx:], crop_mask.data[top_idx][:, 1:])
-    top_vol = [np.zeros(input_arr.shape[temp_idx:])] * top_z
+    binary_mask = draw.polygon2mask(volume.shape[temp_idx:], polygon)
+
+    top_vol = [np.zeros(volume.shape[temp_idx:])] * top_z
     binary_mask_vol = [binary_mask] * (bot_z - top_z)
-    bot_vol = [np.zeros(input_arr.shape[temp_idx:])] * (input_arr.shape[temp_idx - 1] - bot_z)
+    bot_vol = [np.zeros(volume.shape[temp_idx:])] * (volume.shape[temp_idx - 1] - bot_z)
 
     binary_mask_full_vol = np.stack([top_vol + binary_mask_vol + bot_vol])
-    if len(input_arr.shape) == 4:
-        binary_mask_full_vol = np.stack([binary_mask_full_vol] * input_arr.shape[0])
+
+    if len(volume.shape) == 4:
+        binary_mask_full_vol = np.stack([binary_mask_full_vol] * volume.shape[0])
         binary_mask_full_vol = np.squeeze(binary_mask_full_vol)
     else:
         binary_mask_full_vol = np.squeeze(binary_mask_full_vol)
 
-    assert binary_mask_full_vol.shape == input_arr.shape, "Mask and image volume don't match!"
+    assert binary_mask_full_vol.shape == volume.shape, "Mask and image volume don't match!"
 
-    masked_input = input_arr.data * binary_mask_full_vol
+    masked_input = volume * binary_mask_full_vol
     masked_input = masked_input.astype(int)
-
-    if not masked_input.shape == input_arr.shape:
-        print('Reshaped array')
-        masked_input.reshape(input_arr.shape)
 
     print(f'Finished masking after {time.time() - start_time}s!')
 

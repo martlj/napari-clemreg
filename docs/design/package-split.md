@@ -66,6 +66,7 @@ What's different from the 2026-09-21 plan:
 
 - **`PixelSize(z, y, x)`**: a frozen dataclass, in **micrometres**. bioio already reports µm. Parsing `pint` strings stays in the plugin, which converts the widget's `QuantityEdit` values at the boundary (D2). Moving from today's nm to µm doesn't change results: the pipeline only uses *ratios* of pixel sizes when resampling. **Voxel Size** is measured in pixels of the resampled working grid, not in physical units, so its meaning, and saved parameter files, are unaffected.
 - **`Params`**: a dataclass of every pipeline parameter (the fields of the widget sections, with the same defaults as `on_init_specs.py`), with `to_json()` / `from_json()`. Run Registration's **Save parameters** and **Parameters from JSON** use it, which fixes #47. The field names are the JSON keys, and `from_json` ignores unknown keys, so old files still load.
+- **`MaskRoi(polygon, z_min, z_max)`**: the FM Mask ROI as (y, x) polygon vertices and a z range, replacing the napari `Shapes` layer. The plugin builds it from the `Shapes` layer.
 - **`Result`**: the segmentations, point clouds, `Transform`, and warped channels with their pixel size. It's what the headless path returns and what MoBIE export (#6) will take as input.
 
 ### Errors
