@@ -25,6 +25,7 @@ Merged into `modernisation` since 0.5.0, not yet released. Proposed as **0.6.0**
 
 ### Development
 Changes to tests, CI and project docs, with no effect on the installed package.
+- Pipeline output baseline: `test_pipeline_baseline.py` runs FM segmentation, point cloud sampling, and registration and warping (Rigid CPD, Affine CPD, BCPD, the legacy EM-grid output, two linked channels) through the adapter functions on synthetic data, and compares every output with saved values, so the package split can't change results unnoticed. It found that the EM → FM registration direction always crashes (#68), which is pinned as a strict expected failure ([PR #69](https://github.com/martlj/napari-clemreg/pull/69)).
 - Widget behaviour tests: every widget and **Run this step** button is run against a napari `ViewerModel` with stubbed pipeline functions. Open GUI bugs (#47, #48, #49, #50, #53) are pinned as strict expected failures ([PR #54](https://github.com/martlj/napari-clemreg/pull/54)).
 - Real-Viewer smoke tests on Linux CI, a slow end-to-end test of Run Registration on the real sample data, and a `slow tests` workflow that runs `--run-slow` after merges, weekly and on demand ([PR #55](https://github.com/martlj/napari-clemreg/pull/55), [PR #63](https://github.com/martlj/napari-clemreg/pull/63)).
 - `modernisation` is now the fork's default branch, so "Fixes #N" closes issues on merge and scheduled workflows run ([PR #56](https://github.com/martlj/napari-clemreg/pull/56)).
