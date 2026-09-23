@@ -100,15 +100,26 @@ def on_init(widget):
     # against its real source, not guessed. The panel's overall height is
     # separately bounded by wrap_in_scroll_area() in
     # make_run_registration_widget() below.
+    # Each section's own "Run this step" button (added below the section's
+    # existing parameters) runs just that stage using whichever layers
+    # currently sit in its inputs -- auto-set from a previous step, picked
+    # manually, or pre-existing -- independent of the main "Register" call
+    # button, which always runs the full pipeline from Moving_Image /
+    # Fixed_Image onward. See on_init_specs.py's run_*_button entries and
+    # the click handlers wired below.
     group_into_collapsible(widget, 'EM Segmentation Parameters',
-                           ['em_seg_axis', 'em_segmentation_backend'])
+                           ['em_seg_axis', 'em_segmentation_backend', 'run_em_segmentation_button'])
     group_into_collapsible(widget, 'LoG Segmentation Parameters',
                            ['log_sigma', 'log_threshold', 'filter_segmentation',
-                            'filter_size_lower', 'filter_size_upper'])
+                            'filter_size_lower', 'filter_size_upper', 'run_fm_segmentation_button'])
     group_into_collapsible(widget, 'Point Cloud Sampling',
-                           ['point_cloud_sampling_frequency', 'point_cloud_sigma'])
+                           ['Moving_Segmentation', 'Fixed_Segmentation',
+                            'point_cloud_sampling_frequency', 'point_cloud_sigma',
+                            'run_point_cloud_sampling_button'])
     group_into_collapsible(widget, 'Point Cloud Registration',
-                           ['registration_voxel_size', 'registration_max_iterations'])
+                           ['Moving_Points', 'Fixed_Points',
+                            'registration_voxel_size', 'registration_max_iterations',
+                            'run_registration_and_warping_button'])
     group_into_collapsible(widget, 'Image Warping',
                            ['warping_interpolation_order', 'warping_approximate_grid',
                             'warping_sub_division_factor'])
@@ -210,6 +221,236 @@ def on_init(widget):
     if widget.Fixed_Image.value is not None:
         change_fixed_pixelsize(widget.Fixed_Image.value)
 
+    _wire_step_buttons(widget)
+
+def _wire_step_buttons(widget):
+    """Wire each collapsible section's "Run this step" button to run just
+    that stage, using whichever layers currently sit in its own inputs.
+
+    Each handler reads current values directly off `widget.<field>.value`
+    rather than through make_run_registration()'s own parameters, since
+    on_init() (where these are wired) runs once at widget construction --
+    before the decorated function has ever been called with any
+    arguments -- so there's no shared closure to reuse; the actual
+    pipeline logic still lives only in clemreg/widget_components.py,
+    called identically from here and from make_run_registration()'s body.
+    """
+    from napari.qt.threading import thread_worker
+    from napari.viewer import current_viewer
+    from ..clemreg._qt_layout import mark_auto_set, clear_highlight_on_user_select
+
+    # Applies regardless of whether a downstream field's value came from
+    # a single section's own "Run this step" button or from the full
+    # "Register" run -- the auto-set highlight means the same thing
+    # either way.
+    for field_name in ('Fixed_Segmentation', 'Moving_Segmentation', 'Moving_Points', 'Fixed_Points'):
+        clear_highlight_on_user_select(getattr(widget, field_name))
+
+    # make_run_registration()'s own body has no reference back to this
+    # Container (magicgui calls the decorated function as a plain
+    # function, with no self-injection -- confirmed directly), so its
+    # internal thread-worker callbacks can't call mark_auto_set()
+    # themselves. Watching the viewer's own layer-inserted event instead
+    # means the "Register" flow needs no changes at all to get the same
+    # highlighting: match by the fixed layer names widget_components.py
+    # already uses (also relied on elsewhere in this codebase, e.g.
+    # registration_warping.py's _add_data looking layers up by name).
+    _PIPELINE_OUTPUT_FIELDS = {
+        'FM_segmentation': 'Moving_Segmentation',
+        'EM_segmentation': 'Fixed_Segmentation',
+        'Moving_point_cloud': 'Moving_Points',
+        'Fixed_point_cloud': 'Fixed_Points',
+    }
+
+    def _highlight_if_pipeline_output(event):
+        layer = event.value
+        field_name = _PIPELINE_OUTPUT_FIELDS.get(layer.name)
+        if field_name is not None:
+            mark_auto_set(getattr(widget, field_name), layer)
+
+    viewer = current_viewer()
+    if viewer is not None:
+        viewer.layers.events.inserted.connect(_highlight_if_pipeline_output)
+
+    def _run_em_segmentation_step():
+        from ..clemreg.widget_components import run_fixed_segmentation
+
+        fixed_image = widget.Fixed_Image.value
+        if fixed_image is None:
+            show_error("WARNING: You have not inputted a Fixed Image")
+            return
+        if len(fixed_image.data.shape) != 3:
+            show_error("WARNING: Your Fixed_Image must be 3D, your current input has a shape of {}".format(
+                fixed_image.data.shape))
+            return
+
+        @thread_worker
+        def _thread():
+            seg_volume = run_fixed_segmentation(Fixed_Image=fixed_image,
+                                                em_seg_axis=widget.em_seg_axis.value,
+                                                em_segmentation_backend=widget.em_segmentation_backend.value)
+            if isinstance(seg_volume, str):
+                raise ValueError('No mitochondria found in Fixed Image (EM)')
+            return Labels(seg_volume.astype(np.int64), name='EM_segmentation', metadata=fixed_image.metadata)
+
+        def _done(layer):
+            viewer = current_viewer()
+            if viewer is not None:
+                viewer.add_layer(layer)
+            mark_auto_set(widget.Fixed_Segmentation, layer)
+
+        def _errored(exc):
+            show_error(f'EM segmentation failed: {exc}')
+
+        worker = _thread()
+        worker.returned.connect(_done)
+        worker.errored.connect(_errored)
+        worker.start()
+
+    def _run_fm_segmentation_step():
+        from ..clemreg.widget_components import run_moving_segmentation
+        from ..clemreg.mask_roi import mask_area
+
+        moving_image = widget.Moving_Image.value
+        mask_roi = widget.Mask_ROI.value
+        if moving_image is None:
+            show_error("WARNING: You have not inputted a Moving Image")
+            return
+        if len(moving_image.data.shape) != 3:
+            show_error("WARNING: Your Moving_Image must be 3D, your current input has a shape of {}".format(
+                moving_image.data.shape))
+            return
+        if mask_roi is not None:
+            if len(mask_roi.data) != 1:
+                show_error("WARNING: You must input only 1 Mask ROI, you have inputted {}.".format(
+                    len(mask_roi.data)))
+                return
+            if mask_area(mask_roi.data[0][:, 1], mask_roi.data[0][:, 2]) > \
+                    moving_image.data.shape[1] * moving_image.data.shape[2]:
+                show_error("WARNING: Your mask size exceeds the size of the image.")
+                return
+
+        @thread_worker
+        def _thread():
+            seg_volume_mask = run_moving_segmentation(Moving_Image=moving_image,
+                                                       Mask_ROI=mask_roi,
+                                                       z_min=widget.z_min.value,
+                                                       z_max=widget.z_max.value,
+                                                       log_sigma=widget.log_sigma.value,
+                                                       log_threshold=widget.log_threshold.value,
+                                                       filter_segmentation=widget.filter_segmentation.value,
+                                                       filter_size_lower=widget.filter_size_lower.value,
+                                                       filter_size_upper=widget.filter_size_upper.value)
+            if isinstance(seg_volume_mask, str):
+                raise ValueError('No mitochondria found in Moving Image (FM)')
+            return Labels(seg_volume_mask.astype(np.uint32), name='FM_segmentation', metadata=moving_image.metadata)
+
+        def _done(layer):
+            viewer = current_viewer()
+            if viewer is not None:
+                viewer.add_layer(layer)
+            mark_auto_set(widget.Moving_Segmentation, layer)
+
+        def _errored(exc):
+            show_error(f'FM segmentation failed: {exc}')
+
+        worker = _thread()
+        worker.returned.connect(_done)
+        worker.errored.connect(_errored)
+        worker.start()
+
+    def _run_point_cloud_sampling_step():
+        from ..clemreg.widget_components import run_point_cloud_sampling
+
+        moving_segmentation = widget.Moving_Segmentation.value
+        fixed_segmentation = widget.Fixed_Segmentation.value
+        if moving_segmentation is None or fixed_segmentation is None:
+            show_error("WARNING: You have not inputted both a Moving_Segmentation and Fixed_Segmentation")
+            return
+
+        @thread_worker
+        def _thread():
+            return run_point_cloud_sampling(
+                Moving_Segmentation=moving_segmentation,
+                Fixed_Segmentation=fixed_segmentation,
+                moving_image_pixelsize_xy=widget.moving_image_pixelsize_xy.value,
+                moving_image_pixelsize_z=widget.moving_image_pixelsize_z.value,
+                fixed_image_pixelsize_xy=widget.fixed_image_pixelsize_xy.value,
+                fixed_image_pixelsize_z=widget.fixed_image_pixelsize_z.value,
+                point_cloud_sampling_frequency=widget.point_cloud_sampling_frequency.value,
+                voxel_size=widget.registration_voxel_size.value,
+                point_cloud_sigma=widget.point_cloud_sigma.value)
+
+        def _done(result):
+            moving_points, fixed_points = result
+            viewer = current_viewer()
+            if viewer is not None:
+                viewer.add_layer(moving_points)
+                viewer.add_layer(fixed_points)
+            mark_auto_set(widget.Moving_Points, moving_points)
+            mark_auto_set(widget.Fixed_Points, fixed_points)
+
+        def _errored(exc):
+            show_error(f'Point cloud sampling failed: {exc}')
+
+        worker = _thread()
+        worker.returned.connect(_done)
+        worker.errored.connect(_errored)
+        worker.start()
+
+    def _run_registration_and_warping_step():
+        from ..clemreg.widget_components import run_point_cloud_registration_and_warping
+        from ..clemreg._napari_compat import link_layers
+
+        moving_points = widget.Moving_Points.value
+        fixed_points = widget.Fixed_Points.value
+        moving_image = widget.Moving_Image.value
+        fixed_image = widget.Fixed_Image.value
+        if moving_points is None or fixed_points is None:
+            show_error("WARNING: You have not inputted both a Moving_Points and Fixed_Points")
+            return
+        if moving_image is None or fixed_image is None:
+            show_error("WARNING: You have not inputted both a Moving_Image and Fixed_Image")
+            return
+
+        @thread_worker
+        def _thread():
+            return run_point_cloud_registration_and_warping(
+                Moving_Points=moving_points,
+                Fixed_Points=fixed_points,
+                Moving_Image=moving_image,
+                Fixed_Image=fixed_image,
+                registration_algorithm=widget.registration_algorithm.value,
+                registration_max_iterations=widget.registration_max_iterations.value,
+                warping_interpolation_order=widget.warping_interpolation_order.value,
+                warping_approximate_grid=widget.warping_approximate_grid.value,
+                warping_sub_division_factor=widget.warping_sub_division_factor.value,
+                registration_direction=widget.registration_direction.value)
+
+        def _done(result):
+            warp_outputs, transformed = result
+            viewer = current_viewer()
+            if viewer is None:
+                return
+            layers = []
+            for image_layer in warp_outputs:
+                viewer.add_layer(image_layer)
+                layers.append(viewer.layers[image_layer.name])
+            link_layers(layers)
+
+        def _errored(exc):
+            show_error(f'Registration/warping failed: {exc}')
+
+        worker = _thread()
+        worker.returned.connect(_done)
+        worker.errored.connect(_errored)
+        worker.start()
+
+    widget.run_em_segmentation_button.clicked.connect(_run_em_segmentation_step)
+    widget.run_fm_segmentation_button.clicked.connect(_run_fm_segmentation_step)
+    widget.run_point_cloud_sampling_button.clicked.connect(_run_point_cloud_sampling_step)
+    widget.run_registration_and_warping_button.clicked.connect(_run_registration_and_warping_step)
+
 @magic_factory(widget_init=on_init, layout='vertical', call_button='Register',
                widget_header={'widget_type': 'Label',
                               'label': f'<h1 text-align="left">CLEM-Reg</h1>'},
@@ -247,7 +488,17 @@ def on_init(widget):
                fixed_image_pixelsize_z=specs['fixed_image_pixelsize_z'],
                registration_direction=specs['registration_direction'],
                Moving_Image=specs['Moving_Image'],
-               Fixed_Image=specs['Fixed_Image']
+               Fixed_Image=specs['Fixed_Image'],
+
+               Moving_Segmentation=specs['Moving_Segmentation'],
+               Fixed_Segmentation=specs['Fixed_Segmentation'],
+               Moving_Points=specs['Moving_Points'],
+               Fixed_Points=specs['Fixed_Points'],
+
+               run_em_segmentation_button=specs['run_em_segmentation_button'],
+               run_fm_segmentation_button=specs['run_fm_segmentation_button'],
+               run_point_cloud_sampling_button=specs['run_point_cloud_sampling_button'],
+               run_registration_and_warping_button=specs['run_registration_and_warping_button'],
                )
 def make_run_registration(
         viewer: 'napari.viewer.Viewer',
@@ -270,18 +521,26 @@ def make_run_registration(
 
         em_seg_axis,
         em_segmentation_backend,
+        run_em_segmentation_button,
 
         log_sigma,
         log_threshold,
         filter_segmentation,
         filter_size_lower,
         filter_size_upper,
+        run_fm_segmentation_button,
 
+        Moving_Segmentation: Labels,
+        Fixed_Segmentation: Labels,
         point_cloud_sampling_frequency,
         registration_voxel_size,
         point_cloud_sigma,
+        run_point_cloud_sampling_button,
 
+        Moving_Points: Points,
+        Fixed_Points: Points,
         registration_max_iterations,
+        run_registration_and_warping_button,
 
         warping_interpolation_order,
         warping_approximate_grid,
@@ -319,6 +578,10 @@ def make_run_registration(
     warping_interpolation_order
     warping_approximate_grid
     warping_sub_division_factor
+    Moving_Segmentation
+    Fixed_Segmentation
+    Moving_Points
+    Fixed_Points
 
     Returns
     -------
