@@ -87,6 +87,8 @@ For EM segmentation on Python 3.11 today, use the `segment-flow` extra instead (
 
 When a merged (or about-to-be-merged) change is release-worthy, suggest a follow-up commit that bumps `setup.cfg`'s `version` and adds the matching `CHANGELOG.md` entry. Don't apply it unilaterally: versioning and release timing are the user's call. Every suggestion must say **which level (patch, minor or major) and why**, using the rules below. Don't default to minor.
 
+`setup.cfg`'s `version` is the only place the version is defined (`napari_clemreg/__init__.py` reads it via `importlib.metadata`). It changes only in a release commit. That commit sets `version`, renames the CHANGELOG's `[Unreleased]` heading to that version with the date, and is the commit that gets tagged (`vX.Y.Z`). Between releases, `setup.cfg` keeps the last released version. Never go back and bump it for CHANGELOG batches that were never tagged or published: those numbers are just labels, and the first real release sets `version` straight to the latest one. Tags and releases belong on the canonical upstream or Crick-org repo, not this fork (plan §7.7).
+
 ### Choosing the bump level
 
 The "public surface" here means: the widgets and their parameters, the `napari.yaml` command/widget/sample-data IDs, importable Python APIs, the install requirements and extras (Python version, `install_requires`, extra names), and the outputs users get by default (layer shapes, scales, file formats).
