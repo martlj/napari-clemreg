@@ -134,6 +134,31 @@ def _make_isotropic(im_arr: np.ndarray, pxlsz_lm: tuple, pxlsz_em: tuple, invers
         zoom_vals = tuple(1 / x for x in zoom_vals)
     return ndimage.zoom(im_arr, zoom_vals, order=order)
 
+def resample_to_pixelsize(im_arr: np.ndarray, working_pxlsz: float, target_pxlsz: tuple, order: int = 0):
+    """ Resample a dense array from a uniform working voxel size onto an
+    arbitrary (possibly anisotropic) target pixel size.
+
+    Parameters
+    ----------
+    im_arr : np.ndarray
+        Input array, isotropic at `working_pxlsz` in all three axes (e.g.
+        a warp_image_volume_from_list() output, which is always isotropic
+        at the EM z-pixel-size).
+    working_pxlsz : float
+        The (uniform) voxel size of `im_arr`.
+    target_pxlsz : tuple
+        Desired (z, xy) voxel size of the output.
+    order : int
+        Order of resampling.
+    Returns
+    -------
+        Resampled image array
+    """
+    zoom_vals = (working_pxlsz / target_pxlsz[0],
+                working_pxlsz / target_pxlsz[1],
+                working_pxlsz / target_pxlsz[1])
+    return ndimage.zoom(im_arr, zoom_vals, order=order)
+
 def return_isotropic_image_list(input_image: Image,
                                 pxlsz_lm: tuple,
                                 pxlsz_em: tuple,
