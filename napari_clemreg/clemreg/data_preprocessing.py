@@ -9,6 +9,18 @@ import time
 def get_pixelsize(metadata: dict):
     """ Parse pixel sizes from image metadata
 
+    Checks for bioio-derived pixel sizes first (see _reader.py, which
+    puts a `physical_pixel_sizes` key -- a PhysicalPixelSizes(Z, Y, X)
+    in microns, possibly with None components if the file's format/
+    metadata doesn't have them -- in every freshly-loaded layer's
+    metadata). Falls back to the older, ImageJ-specific TIFF-tag
+    parsing below for metadata dicts that predate it, e.g.
+    sample_data.py's hand-populated dicts (kept as-is until real
+    Zenodo sample data with correct embedded metadata replaces it --
+    confirmed directly that one of the two current sample files has no
+    pixel size metadata embedded at all, so there's nothing for either
+    approach to extract there).
+
     Parameters
     ----------
     metadata : dict
@@ -17,6 +29,9 @@ def get_pixelsize(metadata: dict):
     -------
         Pixel size
     """
+    pixel_sizes = metadata.get('physical_pixel_sizes')
+    if pixel_sizes is not None and None not in (pixel_sizes.X, pixel_sizes.Y, pixel_sizes.Z):
+        return (pixel_sizes.X, pixel_sizes.Y, pixel_sizes.Z, 'micron')
 
     try:
         x_pxlsz = 1 / metadata['XResolution']
