@@ -15,6 +15,30 @@ from napari.utils.notifications import show_error
 from napari.qt.threading import GeneratorWorker
 from ..clemreg.on_init_specs import specs
 from ..clemreg._qt_layout import group_into_collapsible, wrap_in_scroll_area
+from ..clemreg.exceptions import ClemregError
+
+
+def _surface_runtime_errors(generator_function):
+    """Re-raise any RuntimeError from a generator worker as a ClemregError.
+
+    Register's segmentation and registration workers are generators, so
+    thread_worker makes them superqt GeneratorWorkers. Those treat a
+    RuntimeError as "the worker object was deleted" and swallow it,
+    emitting neither `errored` nor `finished`, so Register silently hung
+    (#53). RuntimeErrors can come from anywhere in the pipeline (numpy,
+    open3d, probreg, torch), so convert them here. Apply it under
+    @thread_worker.
+    """
+    import functools
+
+    @functools.wraps(generator_function)
+    def wrapper(*args, **kwargs):
+        try:
+            return (yield from generator_function(*args, **kwargs))
+        except RuntimeError as exc:
+            raise ClemregError(f'{type(exc).__name__}: {exc}') from exc
+
+    return wrapper
 
 # Use as worker.join workaround --> Launch registration thread_worker from here
 class RegistrationThreadJoiner:
@@ -656,6 +680,7 @@ def make_run_registration(
         viewer.add_points(points.data, **kwargs)
 
     @thread_worker
+    @_surface_runtime_errors
     def _run_moving_thread(**kwargs):
         from ..clemreg.widget_components import run_moving_segmentation
 
@@ -678,6 +703,7 @@ def make_run_registration(
         return {'Moving_Segmentation': seg_volume_mask}
 
     @thread_worker
+    @_surface_runtime_errors
     def _run_fixed_thread(**kwargs):
         from ..clemreg.widget_components import run_fixed_segmentation
         #Increasing levels of CLAHE
@@ -699,6 +725,7 @@ def make_run_registration(
         return {'Fixed_Segmentation': seg_volume}
 
     @thread_worker
+    @_surface_runtime_errors
     def _run_registration_thread(**kwargs):
         from ..clemreg.widget_components import run_point_cloud_sampling
         from ..clemreg.widget_components import run_point_cloud_registration_and_warping

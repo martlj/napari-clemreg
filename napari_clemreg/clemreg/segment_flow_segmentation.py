@@ -26,6 +26,8 @@ from pathlib import Path
 import numpy as np
 import tifffile
 
+from .exceptions import ClemregError
+
 # Segment-Flow's default branch (`master`) is not the tested/stable
 # target -- aiod_napari (the reference frontend) pins to a specific
 # release tag instead (see its DEFAULT_NXF_REV in
@@ -38,11 +40,11 @@ SEGMENT_FLOW_REVISION = "0.2.1"
 SEGMENT_FLOW_REPO = "FrancisCrickInstitute/Segment-Flow"
 
 
-class SegmentFlowNotAvailable(RuntimeError):
+class SegmentFlowNotAvailable(ClemregError):
     """Raised when Nextflow (or Conda) isn't available on PATH."""
 
 
-class SegmentFlowRunError(RuntimeError):
+class SegmentFlowRunError(ClemregError):
     """Raised when the Nextflow pipeline itself fails."""
 
 
