@@ -11,9 +11,16 @@ to sync from upstream later, branches follow a simple structure:
   fork-specific is merged here. Keeping it untouched means `git fetch upstream
   && git merge upstream/main` stays a clean fast-forward whenever upstream
   moves, and it's what an eventual PR back to upstream would be based on.
-- **`modernisation`** — the integration branch for this fork's own work.
-  Everything from the plan lands here first, via per-issue branches (below),
-  not by committing to it directly once an issue has its own branch.
+  Don't merge `modernisation` into it until the upstream PR has been accepted
+  or the upstream owner agrees otherwise (plan §7). At that point `main` can
+  become the default branch again.
+- **`modernisation`** — the integration branch for this fork's own work, and
+  the fork's **default branch** (since 2026-09-23). Everything from the plan
+  lands here first, via per-issue branches (below), not by committing to it
+  directly once an issue has its own branch. Because it's the default, a plain
+  `git clone` gets it, new PRs target it, scheduled and manual CI workflows
+  run from it, and "Fixes #N" in a merged PR closes the issue automatically.
+  (Before the switch, issues fixed by merged PRs had to be closed by hand.)
 - **One branch per issue or theme**, branched off `modernisation`, named
   `<issue-number>-<short-slug>` (e.g. `6-mobie-export`, `12-em-mask-sample-data`).
   Open a PR into `modernisation` when the work is ready — a real PR gives a
