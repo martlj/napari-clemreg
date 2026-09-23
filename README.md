@@ -74,17 +74,15 @@ This is `open3d` (a dependency), which needs both the [Microsoft Visual C++ Redi
 
 ### Development Installation (this fork)
 
-This fork (`martlj/napari-clemreg`) is being actively modernised — see [docs/napari-clemreg-modernisation-plan.md](docs/napari-clemreg-modernisation-plan.md) for the full plan. **All of this work lives on the `modernisation` branch, not `main`** — the default branch you'd get from a plain `git clone` doesn't have it yet.
-
-If you already have this repo cloned, switch to that branch rather than cloning again (cloning into an existing checkout creates a confusing nested copy):
+This fork (`martlj/napari-clemreg`) is being actively modernised; see [docs/napari-clemreg-modernisation-plan.md](docs/napari-clemreg-modernisation-plan.md) for the full plan. The work is on the `modernisation` branch, which is the fork's default branch, so a plain clone gets it:
+```
+git clone https://github.com/martlj/napari-clemreg.git
+cd napari-clemreg
+```
+If you cloned before 2026-09-23, your checkout is probably on `main`, which doesn't have this work. Switch branches rather than cloning again, because cloning into an existing checkout creates a confusing nested copy:
 ```
 git fetch origin
 git checkout modernisation
-```
-Otherwise, clone it directly onto that branch:
-```
-git clone -b modernisation https://github.com/martlj/napari-clemreg.git
-cd napari-clemreg
 ```
 
 This branch requires **Python 3.11+**. The base install no longer includes `empanada-dl`, so it resolves on Python 3.11. Install it with the `segment-flow` extra to get the default EM segmentation backend (it also needs Nextflow, Conda and a JDK; see [EM segmentation with MitoNet](#em-segmentation-with-mitonet)).

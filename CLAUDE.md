@@ -8,7 +8,7 @@ This is a personal fork (`martlj/napari-clemreg`) of `krentzd/napari-clemreg`. `
 
 ## Branching
 
-`main` is a clean mirror of upstream — never commit fork-specific work there. Modernisation work happens on `modernisation` (the integration branch) via one branch per issue, e.g. `6-mobie-export`, merged in via PR. See [CONTRIBUTING.md](CONTRIBUTING.md) for the full workflow before starting new work.
+`modernisation` is the fork's default branch (since 2026-09-23) and its integration branch. `main` is a clean mirror of upstream and is not the default: never commit fork-specific work there. Modernisation work happens on `modernisation` via one branch per issue, e.g. `6-mobie-export`, merged in via PR. See [CONTRIBUTING.md](CONTRIBUTING.md) for the full workflow before starting new work.
 
 ## Commands
 
