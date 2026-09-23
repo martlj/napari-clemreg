@@ -96,6 +96,22 @@ Keep [CHANGELOG.md](CHANGELOG.md) and [ROADMAP.md](ROADMAP.md) in step with ever
 
 **After a merge:** when you're told a PR has merged, and at the start of a session before other work, cross-check. List the PRs merged into `modernisation` since the newest PR linked in the CHANGELOG (`gh pr list -R martlj/napari-clemreg --base modernisation --state merged`). Also look for ROADMAP items those PRs finished and issues they fixed that are still open. Fix any gaps in one catch-up PR. Don't merge it, as with any other PR.
 
+## Closing issues
+
+`modernisation` is the default branch, so GitHub closes an issue when a merged PR's description (or a commit message) contains a closing keyword before its number: *close(s/d)*, *fix(es/ed)*, *resolve(s/d)*. It matches the keyword **anywhere**, including prose, negations and future tense. "doesn't fully fix #53" closed #53 (PR #67), and "(fixes #47)", written about planned work, closed #47 while it was still broken (PR #62; reopened).
+
+- **Only** write a closing keyword before an issue number when the PR completely resolves that issue, e.g. `Fixes #50` in the summary.
+- Everywhere else, refer to issues without one: "part of #58", "for #47", "see #53", "#47 is planned for phase 1". Avoid "fix"/"close"/"resolve" directly before `#N` in any wording, and check the PR description for this before opening it.
+
+**After a merge** (as part of the cross-check under *CHANGELOG and ROADMAP*):
+1. Check every issue the merge closed was actually resolved by it. Reopen any closed by mistake, with a comment explaining why.
+2. Close issues the merge **unambiguously** completed, with a comment linking the PR. That means:
+   - every task-list item is ticked, and the work for them is merged; or
+   - the issue's stated outcome is demonstrably delivered, e.g. the strict-xfail test pinned to it now passes and its marker has been removed; or
+   - it's a parent issue (like #7) and all its sub-issues are closed.
+3. Tick task-list items the merge completed, on the issue itself and on tracking issues such as #8 and #58.
+4. Don't close anything ambiguous, e.g. partly done, or needing a decision or a manual check. List those for the user instead.
+
 ## Versioning
 
 `setup.cfg`'s `version` (currently `0.2.1`) hasn't been bumped since this fork's modernisation work began, despite several release-worthy batches of work having landed. See [CHANGELOG.md](CHANGELOG.md)'s status note and [issue #1](https://github.com/martlj/napari-clemreg/issues/1) for the real release/versioning decision, which hasn't been made yet.

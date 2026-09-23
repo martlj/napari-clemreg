@@ -21,6 +21,9 @@ to sync from upstream later, branches follow a simple structure:
   `git clone` gets it, new PRs target it, scheduled and manual CI workflows
   run from it, and "Fixes #N" in a merged PR closes the issue automatically.
   (Before the switch, issues fixed by merged PRs had to be closed by hand.)
+  GitHub matches those keywords anywhere in the description, including
+  "doesn't fix #N", so only use them for issues the PR completely resolves
+  (see [CLAUDE.md § Closing issues](CLAUDE.md#closing-issues)).
 - **One branch per issue or theme**, branched off `modernisation`, named
   `<issue-number>-<short-slug>` (e.g. `6-mobie-export`, `12-em-mask-sample-data`).
   Open a PR into `modernisation` when the work is ready — a real PR gives a
