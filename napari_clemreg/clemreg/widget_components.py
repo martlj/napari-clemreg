@@ -172,12 +172,16 @@ def run_point_cloud_registration_and_warping(Moving_Points,
                                              warping_approximate_grid,
                                              warping_sub_division_factor,
                                              registration_direction,
+                                             warping_output_resolution='Native LM resolution',
                                              benchmarking_mode: bool=False,
                                              **reg_kwargs
 ):
     from ..clemreg.point_cloud_registration import point_cloud_registration
-    from ..clemreg.data_preprocessing import return_isotropic_image_list, _make_isotropic
-    from ..clemreg.warp_image_volume import warp_image_volume_from_list
+    from ..clemreg.data_preprocessing import return_isotropic_image_list, resample_to_pixelsize
+    from ..clemreg.warp_image_volume import (
+        warp_image_volume_from_list, _warp_image_volume_affine, _rescale_affine_matrix,
+    )
+    from ..clemreg._napari_compat import get_linked_layers
 
     if registration_direction == u'EM \u2192 FM':
         Fixed_Points, Moving_Points = Moving_Points, Fixed_Points
@@ -198,28 +202,75 @@ def run_point_cloud_registration_and_warping(Moving_Points,
         transformed = Points(moving, **kwargs)
     else:
         transformed = Points(transformed)
-    # Make images isotropic for linked layers
-    moving_image_list = return_isotropic_image_list(input_image=Moving_Image,
-                                                    pxlsz_lm=Moving_Points.metadata['pxlsz'],
-                                                    pxlsz_em=Fixed_Points.metadata['pxlsz'])
-    print('Returned isotropic images')
-    warp_outputs = warp_image_volume_from_list(moving_image_list=moving_image_list,
-                                               output_shape=Fixed_Points.metadata['output_shape'],
-                                               transform_type=registration_algorithm,
-                                               moving_points=Points(moving),
-                                               transformed_points=transformed,
-                                               interpolation_order=warping_interpolation_order,
-                                               approximate_grid=warping_approximate_grid,
-                                               sub_division_factor=warping_sub_division_factor)
-    print('Finished warping images')
-    if Fixed_Points.metadata['pxlsz'][0] != Fixed_Points.metadata['pxlsz'][1]:
-        src_pxlsz = (Fixed_Points.metadata['pxlsz'][0], Fixed_Points.metadata['pxlsz'][0])
+    # The working grid both point clouds (and hence `transformed`'s
+    # affine) were computed in is isotropic at the EM z-pixel-size on all
+    # three axes (see _make_isotropic/return_isotropic_image_list).
+    working_pxlsz = Fixed_Points.metadata['pxlsz'][0]
+    if warping_output_resolution == 'EM pixel grid (legacy)':
+        target_pxlsz = Fixed_Points.metadata['pxlsz']
+    else:
+        target_pxlsz = Moving_Points.metadata['pxlsz']
+
+    scale = (target_pxlsz[0] / Fixed_Points.metadata['pxlsz'][0],
+            target_pxlsz[1] / Fixed_Points.metadata['pxlsz'][1],
+            target_pxlsz[1] / Fixed_Points.metadata['pxlsz'][1])
+
+    if (warping_output_resolution != 'EM pixel grid (legacy)'
+            and (registration_algorithm == 'Affine CPD' or registration_algorithm == 'Rigid CPD')):
+        # Affine/Rigid CPD's transform is a real matrix, so instead of
+        # resampling the moving image up onto the working grid, warping
+        # it there, and resampling the result back down to the target
+        # resolution (three dense resamples total), fold both resampling
+        # steps' scale factors directly into the matrix and warp straight
+        # from the raw moving image to the target grid in one pass.
+        matrix_combined = _rescale_affine_matrix(transformed.affine.affine_matrix,
+                                                 raw_pxlsz=Moving_Points.metadata['pxlsz'],
+                                                 working_pxlsz=working_pxlsz,
+                                                 target_pxlsz=target_pxlsz)
+        extent = tuple(s * working_pxlsz for s in Fixed_Points.metadata['output_shape'])
+        coarse_output_shape = (round(extent[0] / target_pxlsz[0]),
+                               round(extent[1] / target_pxlsz[1]),
+                               round(extent[2] / target_pxlsz[1]))
+
+        if len(get_linked_layers(Moving_Image)) > 0:
+            images = get_linked_layers(Moving_Image)
+            images.add(Moving_Image)
+        else:
+            images = [Moving_Image]
+
+        warp_outputs = []
+        for image in images:
+            print(f'Warping {image.name} with {registration_algorithm} (direct-to-native)...')
+            img_wrp = _warp_image_volume_affine(image=image.data,
+                                                matrix=matrix_combined,
+                                                output_shape=coarse_output_shape,
+                                                interpolation_order=warping_interpolation_order)
+            warp_outputs.append(Image(img_wrp,
+                                      name=image.name + '_warped',
+                                      colormap=image.colormap,
+                                      blending=image.blending,
+                                      scale=scale))
+        print('Finished warping images')
+    else:
+        # Make images isotropic for linked layers
+        moving_image_list = return_isotropic_image_list(input_image=Moving_Image,
+                                                        pxlsz_lm=Moving_Points.metadata['pxlsz'],
+                                                        pxlsz_em=Fixed_Points.metadata['pxlsz'])
+        print('Returned isotropic images')
+        warp_outputs = warp_image_volume_from_list(moving_image_list=moving_image_list,
+                                                   output_shape=Fixed_Points.metadata['output_shape'],
+                                                   transform_type=registration_algorithm,
+                                                   moving_points=Points(moving),
+                                                   transformed_points=transformed,
+                                                   interpolation_order=warping_interpolation_order,
+                                                   approximate_grid=warping_approximate_grid,
+                                                   sub_division_factor=warping_sub_division_factor)
+        print('Finished warping images')
+
         for warp_output in warp_outputs:
-            warp_output.data = _make_isotropic(warp_output.data,
-                                               src_pxlsz,
-                                               Fixed_Points.metadata['pxlsz'],
-                                               inverse=True,
-                                               ref_frame='EM')
+            warp_output.data = resample_to_pixelsize(warp_output.data, working_pxlsz, target_pxlsz)
+            warp_output.scale = scale
+
     if benchmarking_mode:
         return warp_outputs, transformed, elapsed
     else:

@@ -71,6 +71,7 @@ def on_init(widget):
                warping_interpolation_order=specs['warping_interpolation_order'],
                warping_approximate_grid=specs['warping_approximate_grid'],
                warping_sub_division_factor=specs['warping_sub_division_factor'],
+               warping_output_resolution=specs['warping_output_resolution'],
 
                registration_direction=specs['registration_direction'],
                )
@@ -97,6 +98,7 @@ def registration_warping_widget(viewer: 'napari.viewer.Viewer',
                                 warping_interpolation_order,
                                 warping_approximate_grid,
                                 warping_sub_division_factor,
+                                warping_output_resolution,
 
                                 registration_direction
                                 ):
@@ -133,6 +135,9 @@ def registration_warping_widget(viewer: 'napari.viewer.Viewer',
         ?
     warping_sub_division_factor : int
         ?
+    warping_output_resolution : str
+        Pixel grid to save the warped output at -- native FM resolution
+        (default) or EM's own pixel grid (legacy behaviour).
 
     Returns
     -------
@@ -193,6 +198,7 @@ def registration_warping_widget(viewer: 'napari.viewer.Viewer',
                                                warping_interpolation_order=warping_interpolation_order,
                                                warping_approximate_grid=warping_approximate_grid,
                                                warping_sub_division_factor=warping_sub_division_factor,
+                                               warping_output_resolution=warping_output_resolution,
                                                registration_direction=registration_direction)
     worker_registration.returned.connect(_add_data)
     worker_registration.start()

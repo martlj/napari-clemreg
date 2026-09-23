@@ -111,7 +111,7 @@ def on_init(widget):
                            ['registration_voxel_size', 'registration_max_iterations'])
     group_into_collapsible(widget, 'Image Warping',
                            ['warping_interpolation_order', 'warping_approximate_grid',
-                            'warping_sub_division_factor'])
+                            'warping_sub_division_factor', 'warping_output_resolution'])
 
     # Cheap insurance for the same "doesn't shrink back down" behaviour
     # on the few small toggles left (1-2 widgets each) -- harmless even
@@ -238,6 +238,7 @@ def on_init(widget):
                warping_interpolation_order=specs['warping_interpolation_order'],
                warping_approximate_grid=specs['warping_approximate_grid'],
                warping_sub_division_factor=specs['warping_sub_division_factor'],
+               warping_output_resolution=specs['warping_output_resolution'],
                save_json=specs['save_json'],
                save_json_path=specs['save_json_path'],
                visualise_intermediate_results=specs['visualise_intermediate_results'],
@@ -286,6 +287,7 @@ def make_run_registration(
         warping_interpolation_order,
         warping_approximate_grid,
         warping_sub_division_factor,
+        warping_output_resolution,
 
         save_json,
         save_json_path,
@@ -319,6 +321,7 @@ def make_run_registration(
     warping_interpolation_order
     warping_approximate_grid
     warping_sub_division_factor
+    warping_output_resolution
 
     Returns
     -------
@@ -428,6 +431,7 @@ def make_run_registration(
                                 'warping_interpolation_order',
                                 'warping_approximate_grid',
                                 'warping_sub_division_factor',
+                                'warping_output_resolution',
                                 'registration_direction']
 
         reg_and_warping_kwargs = dict((k, kwargs[k]) for k in reg_and_warping_keys if k in kwargs)
@@ -487,6 +491,7 @@ def make_run_registration(
         warping_interpolation_order=warping_interpolation_order,
         warping_approximate_grid=warping_approximate_grid,
         warping_sub_division_factor=warping_sub_division_factor,
+        warping_output_resolution=warping_output_resolution,
         registration_direction=registration_direction
     )
     joiner = RegistrationThreadJoiner(worker_function=_run_registration_thread,

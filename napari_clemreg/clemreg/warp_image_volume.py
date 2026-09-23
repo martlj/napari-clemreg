@@ -295,6 +295,48 @@ def _warp_image_volume_affine(image,
     return img_wrp
 
 
+def _rescale_affine_matrix(matrix, raw_pxlsz, working_pxlsz, target_pxlsz):
+    """ Recompose a registration matrix so it maps directly from a target
+    output grid to the raw (un-resampled) moving image's own native grid.
+
+    `matrix` (moving -> fixed) is computed by point_cloud_registration()
+    in the internal isotropic-at-EM-z-pixel-size "working grid" shared by
+    both point clouds. Naively applying it means resampling the moving
+    image up onto that working grid first, warping there, then resampling
+    the result back down to whatever output resolution is actually
+    wanted -- two extra dense resamples for no benefit. Folding both
+    resamples' scale factors directly into the matrix lets
+    _warp_image_volume_affine() warp straight from the raw moving image
+    to the target grid in a single interpolation pass.
+
+    Parameters
+    ----------
+    matrix : np.ndarray
+        4x4 homogeneous registration matrix, moving->fixed, in the
+        working grid's voxel-index coordinates.
+    raw_pxlsz : tuple
+        (z, xy) voxel size of the raw (un-resampled) moving image.
+    working_pxlsz : float
+        Voxel size of the working grid `matrix` was computed in (uniform
+        across all three axes).
+    target_pxlsz : tuple
+        (z, xy) voxel size of the desired output grid.
+    Returns
+    -------
+        4x4 homogeneous matrix mapping target-grid output indices
+        directly to raw-moving-image indices.
+    """
+    scale_out_inv = np.diag([working_pxlsz / target_pxlsz[0],
+                             working_pxlsz / target_pxlsz[1],
+                             working_pxlsz / target_pxlsz[1],
+                             1.0])
+    scale_in_inv = np.diag([raw_pxlsz[0] / working_pxlsz,
+                            raw_pxlsz[1] / working_pxlsz,
+                            raw_pxlsz[1] / working_pxlsz,
+                            1.0])
+    return scale_out_inv @ matrix @ scale_in_inv
+
+
 def _warp_image_volume(moving_image: Image,
                        output_shape: tuple,
                        moving_points: PointsData,

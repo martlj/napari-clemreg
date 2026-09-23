@@ -2,7 +2,9 @@ import numpy as np
 import pytest
 from qtpy.QtWidgets import QApplication
 
-from napari_clemreg.clemreg.data_preprocessing import get_pixelsize, return_isotropic_image_list, _zoom_values
+from napari_clemreg.clemreg.data_preprocessing import (
+    get_pixelsize, return_isotropic_image_list, _zoom_values, resample_to_pixelsize,
+)
 
 # Exact metadata dicts used by napari_clemreg/clemreg/sample_data.py, reused
 # here so the parsing test exercises real-world strings rather than an
@@ -97,3 +99,19 @@ def test_return_isotropic_image_list_handles_real_linked_layers():
     assert {r.name for r in result} == {'FM_Mitotracker', 'FM_TGN46'}
     for r in result:
         assert r.data.shape == (20, 20, 20)
+
+
+def test_resample_to_pixelsize_downsamples_to_coarser_native_grid():
+    # A 40**3 array isotropic at 5nm/voxel (the internal warp working
+    # grid, keyed to EM's z-pixel-size) covers a 200nm cube. Resampling
+    # to a coarser, anisotropic target (20nm z, 10nm xy) should shrink it
+    # to a 10 x 20 x 20 array while covering the same physical extent.
+    arr = np.random.default_rng(0).integers(0, 255, (40, 40, 40), dtype=np.uint8)
+    result = resample_to_pixelsize(arr, working_pxlsz=5.0, target_pxlsz=(20.0, 10.0))
+    assert result.shape == (10, 20, 20)
+
+
+def test_resample_to_pixelsize_is_identity_when_target_matches_working_grid():
+    arr = np.random.default_rng(0).integers(0, 255, (12, 12, 12), dtype=np.uint8)
+    result = resample_to_pixelsize(arr, working_pxlsz=5.0, target_pxlsz=(5.0, 5.0))
+    assert result.shape == arr.shape
