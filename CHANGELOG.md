@@ -21,7 +21,7 @@ Merged into `modernisation` since 0.5.0, not yet released. Proposed as **0.6.0**
 
 ### Fixed
 - `pint` is now a declared dependency (`pint >= 0.21`). The plugin imports it directly for the pixel-size fields, but it was only installed because napari requires it, and napari's floor (`pint>=0.17`) allows versions without `Quantity.to_preferred`, which the plugin calls when reading pixel sizes ([PR #65](https://github.com/martlj/napari-clemreg/pull/65)).
-- README: the **Sampling Frequency** and **Voxel Size** descriptions had their effect backwards. Higher values of either give *fewer* points and use less memory. The size filter is now correctly described as percentiles ([PR #52](https://github.com/martlj/napari-clemreg/pull/52)).
+- README: the **Voxel Size** description had its effect backwards: larger values give *fewer* points and use less memory. The size filter is now correctly described as percentiles ([PR #52](https://github.com/martlj/napari-clemreg/pull/52)). PR #52 also reversed the **Sampling Frequency** description by mistake. Higher values give *more* points, as the original README said, and that's corrected again ([PR #66](https://github.com/martlj/napari-clemreg/pull/66)).
 
 ### Development
 Changes to tests, CI and project docs, with no effect on the installed package.
