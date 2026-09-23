@@ -69,9 +69,9 @@ The full pipeline (EM segmentation → FM segmentation → point-cloud sampling 
 
 ### In-progress package split
 
-`packages/clemreg/` is a placeholder for extracting the `clemreg/` core (segmentation, point-cloud sampling, registration, warping, plus a planned MoBIE export) into a standalone, napari-free PyPI package (`clemreg`, requires Python ≥3.11, built with hatchling — separate from the root package's setuptools/Python ≥3.7 config). It currently only reserves the PyPI name (version `0.0.0`, no functionality). The napari plugin in this repo will eventually depend on that core package rather than containing the algorithms directly. This is being tracked on the `modernisation` branch.
+`packages/clemreg/` is a placeholder (version `0.0.0`, reserving the PyPI name) for a standalone, napari-free `clemreg` core package, which the plugin will depend on. **Read [docs/design/package-split.md](docs/design/package-split.md) before changing anything in `napari_clemreg/clemreg/`**. It defines the boundary: the four `run_*` functions in `widget_components` stay as the plugin's layer-to-array adapters, and the core takes arrays, `PixelSize` (µm), `Params` and `Transform`, and raises `ClemregError` subclasses. Status is on [#7](https://github.com/martlj/napari-clemreg/issues/7) and its phase sub-issues (#57–#61), not in the doc. Record design changes in the doc's decisions log, not as "update" notes.
 
-The full plan (testing foundation, Python 3.11 + napari 0.6.6 upgrade, MoBIE export, the core/widget split, and the repo/PyPI/release strategy) is in [docs/napari-clemreg-modernisation-plan.md](docs/napari-clemreg-modernisation-plan.md) — read it before starting work related to any of those areas.
+The original modernisation plan (testing foundation, Python 3.11, napari upgrade, MoBIE export, and the repo/PyPI/release strategy; its §6 on the split now points to the design doc) is in [docs/napari-clemreg-modernisation-plan.md](docs/napari-clemreg-modernisation-plan.md) — read it before starting work related to any of those areas.
 
 ## Packaging
 

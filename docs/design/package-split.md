@@ -1,0 +1,137 @@
+# Design: splitting `clemreg` (core) from `napari-clemreg` (plugin)
+
+This document describes the design and the reasons for it. **It doesn't track status**: that's on GitHub, in [#7](https://github.com/martlj/napari-clemreg/issues/7) (the parent issue), its sub-issues (one per phase below) and the [*clemreg 0.1.0* milestone](https://github.com/martlj/napari-clemreg/milestone/1). When a decision changes, update the [decisions log](#decisions-log) rather than adding "update" notes to the text.
+
+It replaces §6 of the [modernisation plan](../napari-clemreg-modernisation-plan.md#6-splitting-into-two-packages-clemreg-core--napari-clemreg-widget), which was written on 2026-09-21. Since then the code gained Segment-Flow, the per-step buttons (#35), native-resolution warping (#33), bioio metadata (#37) and widget behaviour tests (#54).
+
+## Goal
+
+Two installable distributions from one repository:
+
+- **`clemreg`** (import `clemreg`): the pipeline. FM and EM segmentation, point cloud sampling, registration, warping and, later, MoBIE export. It works on numpy arrays and plain Python types, with **no napari, Qt or magicgui imports**. This makes headless and batch use possible (`notebooks/clemreg_batch_mode.ipynb` already does this, but has to import napari to do it), as well as scripting and fast tests without Qt.
+- **`napari-clemreg`** (import `napari_clemreg`): the napari plugin. Widgets, the npe2 manifest, the reader, sample data, and thin adapters that turn layers into arrays, call `clemreg`, and turn the results back into layers. It depends on `clemreg`.
+
+## Where the code is now
+
+The pipeline code lives in `napari_clemreg/clemreg/`. Most modules use napari only lightly: they read `.data` or `.metadata`, or build a layer to return.
+
+| Module | napari / Qt use today | Goes to |
+|---|---|---|
+| `log_segmentation.py` | takes `Image`; imports `thread_worker` (unused) | core, arrays in and out |
+| `mask_roi.py` | takes `Shapes`, returns `Image` | core: takes polygon vertices and a z range |
+| `point_cloud_sampling.py` | takes `Labels`, returns `Points` | core: returns an `(N, 3)` array |
+| `point_cloud_registration.py` | `PointsData` (an ndarray alias), `magicgui.tqdm`, a viewer-based `_add_data` (unused) | core: plain `tqdm` or a progress callback; drop `_add_data` |
+| `warp_image_volume.py` | public functions take and return `Image`/`Points` and read `.colormap`/`.blending`; the private maths is pure numpy | core: array warps; layer styling and linked channels go to the plugin |
+| `data_preprocessing.py` | `make_isotropic` and `return_isotropic_image_list` take `Image`; the rest works on arrays and dicts | core, arrays only |
+| `empanada_segmentation.py` | none | core, `[empanada]` extra |
+| `segment_flow_segmentation.py` | none | core, `[segment-flow]` extra |
+| `widget_components.py` | the four `run_*` functions both GUIs call; `show_info`; `'No segmentation'` string returns; broken JSON helpers (#47) | **split**: pipeline steps go to the core; the `run_*` functions stay in the plugin as adapters (see below) |
+| `sample_data.py` | none, but it builds napari layer tuples | plugin (see decision D5) |
+| `_reader.py` | none (bioio) | napari reader hook in the plugin; pixel-size reading in the core as `clemreg.io` |
+| `on_init_specs.py`, `_qt_layout.py`, `_napari_compat.py`, `widgets/*`, `napari.yaml` | UI | plugin |
+
+Unused legacy functions (`warp_image_volume_deprecated`, `_make_isotropic_v1`, `filter_binary_segmentation_v1`, and probably `point_cloud_registration._add_data`) are deleted in phase 1 rather than moved.
+
+## The boundary
+
+### Keep the four `run_*` functions as the plugin's adapters
+
+Since #35, both GUIs (the split widgets and Run Registration's **Run this step** buttons) go through the same four functions in `widget_components`: `run_fixed_segmentation`, `run_moving_segmentation`, `run_point_cloud_sampling` and `run_point_cloud_registration_and_warping`. `test_widget_behaviour.py` replaces exactly these with stubs.
+
+So these four keep their names and their layer-based signatures, and become the plugin's adapters (moving to `napari_clemreg/_adapters.py`, with `widget_components` re-exporting them). Each one turns layers into arrays and a `PixelSize`, calls one core function, and wraps the result as a layer. The widget tests keep working unchanged and become the acceptance test for the boundary.
+
+### Core API (napari-free)
+
+```python
+from clemreg import PixelSize, Params, Result
+
+segment_fm(volume, sigma, threshold, size_filter=None, roi=None) -> np.ndarray      # labels
+segment_em(volume, backend="segment-flow", three_axis=False) -> np.ndarray         # labels
+sample_point_cloud(labels, pixel_size, every_k, voxel_size, sigma) -> np.ndarray    # (N, 3)
+register_point_clouds(moving, fixed, algorithm, max_iterations,
+                      progress=None) -> Transform
+warp_volume(volume, transform, moving_pixel_size, target_pixel_size,
+            order, approximate_grid, sub_division_factor) -> tuple[np.ndarray, PixelSize]
+run_clemreg(fm_channels, fm_pixel_size, em, em_pixel_size, params) -> Result
+```
+
+What's different from the 2026-09-21 plan:
+
+- **`warp_volume` takes a target pixel size, not an output shape, and returns the pixel size of its output.** Native-resolution warping (#33) produces an array that's placed over EM using its scale, so the size is part of the result. The plugin turns it into the layer's `scale`.
+- **The registration direction** (FM → EM or EM → FM) is a field of `Params`, handled in `run_clemreg`, rather than something only the widget knows about.
+- **`Transform`** holds either an affine matrix (Rigid/Affine CPD) or thin-plate-spline control points (BCPD), so that `warp_volume` and, later, the MoBIE exporter can use it without knowing which algorithm produced it.
+- **Several channels are passed as a list.** `get_linked_layers` is a napari concept. The plugin collects the linked channels and passes a list, and the core warps each one with the same transform.
+
+### Types
+
+- **`PixelSize(z, y, x)`**: a frozen dataclass, in **micrometres**. bioio already reports µm. Parsing `pint` strings stays in the plugin, which converts the widget's `QuantityEdit` values at the boundary (D2).
+- **`Params`**: a dataclass of every pipeline parameter (the fields of the widget sections, with the same defaults as `on_init_specs.py`), with `to_json()` / `from_json()`. Run Registration's **Save parameters** and **Parameters from JSON** use it, which fixes #47. The field names are the JSON keys, and `from_json` ignores unknown keys, so old files still load.
+- **`Result`**: the segmentations, point clouds, `Transform`, and warped channels with their pixel size. It's what the headless path returns and what MoBIE export (#6) will take as input.
+
+### Errors
+
+The core raises its own exceptions, all subclasses of `ClemregError(Exception)`:
+
+- `NoSegmentationError` replaces the `'No segmentation'` string that the core returns today. That string was the cause of #25 and #50.
+- `SegmentFlowNotAvailable` and `SegmentFlowRunError` are re-based onto `ClemregError`. At the moment they subclass `RuntimeError`, which superqt's generator workers treat as a deleted worker and swallow, causing the Register hang in #53. The plugin's adapters must also stop any other `RuntimeError` reaching a generator worker (#53).
+
+The core never shows GUI messages. `show_info` calls become `logging` calls, and progress is reported through an optional `progress` callback, which the plugin connects to napari's progress bars.
+
+### Keeping the boundary in place
+
+A test imports every core module in a subprocess with napari, magicgui, qtpy and superqt blocked (`sys.modules[name] = None`), and fails if any of them imports. It's added in phase 1, before any files move, so the boundary is checked from then on and nobody has to rely on review to catch a stray import.
+
+## Layout and packaging
+
+```
+napari-clemreg/                  # repo; the root package stays the plugin
+  pyproject.toml                 # napari-clemreg (replaces setup.cfg/setup.py); uv workspace root
+  napari_clemreg/                # plugin code, unchanged location
+  packages/clemreg/
+    pyproject.toml               # clemreg (hatchling)
+    src/clemreg/
+```
+
+The plugin stays at the repo root, so paths in CI, tox, `napari.yaml` package data and the docs don't change, and `git blame` history is kept. The root `pyproject.toml` declares a [uv workspace](https://docs.astral.sh/uv/concepts/projects/workspaces/) with `packages/clemreg` as a member, so a single `uv pip install -e ".[segment-flow]"` gives an editable install of both packages (D1).
+
+**Core dependencies:** numpy, scipy, scikit-image, open3d, probreg, transforms3d, connected-components-3d, tqdm.
+**Core extras:** `[segment-flow]` (aiod_utils), `[empanada]` (empanada-dl, torch; still blocked on Python 3.11, #5), `[io]` (bioio, bioio-tifffile), and later `[mobie]`.
+**Plugin dependencies:** `clemreg>=0.1,<0.2`, `napari>=0.6`, magicgui, superqt, pint, pooch, and `clemreg[io]`. The plugin's `[segment-flow]` and `[empanada]` extras just pass through to the core's.
+
+**Tests:** the pure tests (maths, the synthetic end-to-end registration) move to `packages/clemreg/tests`, and a separate CI job runs them without Qt or xvfb. The widget, real-Viewer and GUI end-to-end tests stay with the plugin.
+
+**Backwards compatibility:** for one release, `napari_clemreg.clemreg.<module>` re-exports from `clemreg` and raises a `DeprecationWarning`, so the batch notebook and anyone else importing the internals keep working (D4).
+
+## Phases
+
+Each phase is one PR (or a few), leaves the tests passing, and has its own sub-issue under #7.
+
+0. **Confirm the decisions** below (#57).
+1. **Remove napari from the core modules, without moving any files** (#58). Arrays in and out, layer handling moved into the adapters, plus `PixelSize`, `Params`, `Transform` and the exceptions. Add the import-boundary test and delete the legacy functions. The widget behaviour tests are the acceptance test. This also fixes #47, #50 and #53. Most of the risk is in this phase.
+2. **Move the code into `packages/clemreg`** (#59). Add both `pyproject.toml` files, the uv workspace and the compatibility re-exports, and give the core its own CI job that doesn't need Qt.
+3. **Headless path** (#60): `run_clemreg` and `Result`, with the batch notebook switched to `import clemreg`, and the README and CLAUDE.md updated for the two-package install.
+4. **Release** (#61): `clemreg 0.1.0` (its first real release after the `0.0.0` placeholder), and the next minor `napari-clemreg`, marked **Breaking** because internal import paths change (see CLAUDE.md § Versioning).
+
+The MoBIE exporter (#6) comes after the release, written directly against `Result` and `Transform` in the core, as an additive `clemreg 0.2.0`. The old plan built it before the split to avoid moving it later. Now that there are widget tests, splitting first is simpler, and it keeps MoBIE from holding up the core's first release.
+
+## Risks
+
+- **Linked channels:** if the plugin doesn't collect every linked layer before calling the core, a multi-channel warp silently drops channels. Add a behaviour test with two linked FM channels in phase 1.
+- **Numerical drift from moving code:** phase 1 changes signatures, not maths. The synthetic end-to-end test (`test_end_to_end_registration.py`) and the slow GUI end-to-end test on real data must give the same results before and after.
+- **Units:** `get_pixelsize` currently returns values and a unit from ImageJ-style metadata, while bioio returns µm. Converting everything to µm at the boundary must not change the pixel sizes used by the pipeline. Pin them with a test on the sample data's metadata before changing anything.
+- **Two version streams:** the plugin's `clemreg>=0.1,<0.2` pin has to move along with the core's minor releases.
+
+## Decisions log
+
+Each decision is **Proposed** until confirmed in the phase 0 sub-issue.
+
+| # | Decision | Options considered | Chosen | Status |
+|---|---|---|---|---|
+| D1 | Repository layout | (a) both packages under `packages/*/src`; (b) plugin stays at the root and the core goes in `packages/clemreg`, as a uv workspace; (c) two repositories | (b): least disruption to paths, CI and history. Revisit (c) only if the release cadences diverge. | Proposed, 2026-09-23 |
+| D2 | Where unit handling lives | core parses `pint`; core takes plain numbers | Core takes a `PixelSize` in µm. `pint` stays in the plugin. | Proposed, 2026-09-23 |
+| D3 | Error reporting | string sentinels; `RuntimeError`; own exception classes | `ClemregError(Exception)` subclasses, never `RuntimeError` (#25, #50, #53) | Proposed, 2026-09-23 |
+| D4 | Old import paths | break them; keep re-exports | Re-export with a `DeprecationWarning` for one release | Proposed, 2026-09-23 |
+| D5 | Where sample data lives | plugin; a napari-free `clemreg.data` | Plugin for now: it builds napari layer tuples, and the metadata is being redone in #42. Revisit when #42 lands. | Proposed, 2026-09-23 |
+| D6 | Order of the split and MoBIE | MoBIE first (old plan); split first | Split first, then MoBIE directly in the core, released as `clemreg 0.2.0` | Proposed, 2026-09-23 |
+| D7 | Keep the split widgets? | retire them in favour of Run Registration's step buttons; keep them | Out of scope for the split. They share the adapters either way (#35). | Open |
+| D8 | Widget framework | keep magicgui; rewrite the widgets in raw Qt (as AIoD's plugin does) | Out of scope for the split. The adapters don't depend on either, so this can be decided later (see ROADMAP.md). | Open |
