@@ -34,6 +34,13 @@ From the original modernisation plan (`docs/napari-clemreg-modernisation-plan.md
 
 ## Newer ideas (from live testing, not in the original plan)
 
+- **Automatic initial orientation for point cloud registration** ([#73](https://github.com/martlj/napari-clemreg/issues/73)). Registration works much better when the clouds start within about 90° of the right orientation, and today users pick the nearest orthogonal orientation by hand. To investigate:
+  - running the registration from several starting orientations (e.g. the 24 axis-aligned rotations, on downsampled clouds) and keeping the best by a metric such as inlier fraction or Chamfer distance
+  - handling a z flip between EM and FM, as a user setting, as extra candidates in the multi-start, or by a heuristic checked against typical data
+  - open3d's feature-based global registration as a cheaper initialiser
+
+  It fits the core's `register_point_clouds`, and is easier after package split phase 1 (#58).
+
 - **OME-Zarr integration** — the underlying motivation for the native-resolution warping work (#33): once real OME-Zarr/NGFF support exists, the current isotropic-resampling-onto-a-common-grid approach becomes unnecessary rather than just lighter. Depends on #6.
 - **OME-Zarr sample data, tiff + zarr variants** ([#41](https://github.com/martlj/napari-clemreg/issues/41)) — for once OME-Zarr support lands.
 - **Regenerate EM sample data with real embedded pixel-size metadata** ([#42](https://github.com/martlj/napari-clemreg/issues/42)) — confirmed directly that the current EM Zenodo file has no pixel-size metadata embedded at all; the hardcoded override in `sample_data.py` is load-bearing, not decorative, and can't be retired until this happens.
