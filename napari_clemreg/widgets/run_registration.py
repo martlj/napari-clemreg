@@ -610,6 +610,7 @@ def make_run_registration(
     -------
 
     """
+    import time
     from pathlib import Path
     from ..clemreg.log_segmentation import log_segmentation, filter_binary_segmentation
     from ..clemreg.mask_roi import mask_roi, mask_area
@@ -631,6 +632,12 @@ def make_run_registration(
                 viewer.add_layer(image_layer)
                 layers.append(viewer.layers[image_layer.name])
             link_layers(layers)
+            # This return_value (a list of warped Image layers) is only
+            # ever produced once, by the final stage of the pipeline --
+            # so its arrival marks the whole "Register" run as complete,
+            # timed from just before the moving/fixed segmentation
+            # workers below were started.
+            print(f'Run Registration finished in {time.time() - start_time:.2f}s')
         else:
             print(f'Adding {return_value.name} to viewer...')
             viewer.add_layer(return_value)
@@ -757,6 +764,8 @@ def make_run_registration(
 
     if save_json and not params_from_json:
         _create_json_file(path_to_json=save_json_path)
+
+    start_time = time.time()
 
     registration_thread_kwargs = dict(
         moving_image_pixelsize_xy=moving_image_pixelsize_xy,
