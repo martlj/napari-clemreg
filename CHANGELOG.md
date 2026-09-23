@@ -2,13 +2,13 @@
 
 All notable changes to this fork's modernisation work are documented here, in reverse chronological order. Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-**Status note:** `setup.cfg` has stayed at `0.2.1` (inherited from upstream) throughout the modernisation work below — none of it has actually been version-bumped or tagged yet. The version numbers here are a *proposal* for how that work breaks into minor-version batches, grouped by theme and merge date, not a record of real releases. See [ROADMAP.md](ROADMAP.md) and [issue #1](https://github.com/martlj/napari-clemreg/issues/1) for the actual release/versioning decision, which hasn't been made yet.
+**Status note:** `setup.cfg` has stayed at `0.2.1` (inherited from upstream) throughout the modernisation work below — none of it has actually been version-bumped or tagged yet. The version numbers here are a *proposal* for how that work breaks into release batches, grouped by theme and merge date, not a record of real releases. Each batch is numbered by the bump rules in [CLAUDE.md § Versioning](CLAUDE.md#versioning): minor for new features or (while pre-1.0) breaking changes, patch for fixes only. See [ROADMAP.md](ROADMAP.md) and [issue #1](https://github.com/martlj/napari-clemreg/issues/1) for the actual release/versioning decision, which hasn't been made yet.
 
 This changelog covers the modernisation fork's own work only (starting from the testing-foundation pass below). It doesn't itemise upstream `krentzd/napari-clemreg`'s pre-fork history.
 
 ## [Unreleased]
 
-Open PRs, not yet merged into `modernisation`.
+Open PRs, not yet merged into `modernisation`. Proposed as **0.6.0**, a minor bump: it adds features (per-step buttons, `bioio` metadata) and changes the default warped-LM output resolution.
 
 ### Added
 - EM segmentation backend dropdown now uses `bioio` for pixel-size metadata extraction instead of hand-parsing ImageJ-specific TIFF tags, so it isn't limited to ImageJ-written TIFFs ([#37](https://github.com/martlj/napari-clemreg/issues/37), [PR #38](https://github.com/martlj/napari-clemreg/pull/38)).
@@ -18,22 +18,23 @@ Open PRs, not yet merged into `modernisation`.
 ### Changed
 - Warped LM (moving image) output now defaults to LM's own native pixel resolution instead of being forced onto EM's (much finer) pixel grid, placed correctly via the layer's `scale` rather than matching pixel counts. An "EM pixel grid (legacy)" option keeps the old behaviour. For Rigid/Affine CPD, the registration matrix is rescaled so the warp runs in a single interpolation pass directly from raw data ([#33](https://github.com/martlj/napari-clemreg/issues/33), [PR #34](https://github.com/martlj/napari-clemreg/pull/34)).
 
-## [0.6.0] — AI-on-Demand Segment-Flow integration (2026-09-22 — 2026-09-23)
+## [0.5.0] — AI-on-Demand Segment-Flow integration (2026-09-22 — 2026-09-23)
 
 ### Added
 - New EM segmentation backend: Crick's AI-on-Demand (AIoD) [Segment-Flow](https://github.com/FrancisCrickInstitute/Segment-Flow) pipeline, shelling out to Nextflow rather than running MitoNet in-process. Works on Python 3.11, unlike the bundled `empanada-dl` extra (blocked by its `numpy==1.22` pin — [#5](https://github.com/martlj/napari-clemreg/issues/5)) ([PR #16](https://github.com/martlj/napari-clemreg/pull/16)).
 - **EM Segmentation Backend** dropdown: `MitoNet (Segment-Flow)` / `MitoNet (empanada-dl)`, naming both explicitly as the same underlying model accessed two different ways.
 
 ### Changed
+- **Breaking (install):** `empanada-dl` moved out of `install_requires` into its own `empanada` extra (`pip install napari-clemreg[empanada]`), so the base install resolves on Python 3.11. Users of the in-process MitoNet backend need the extra.
 - Default EM segmentation backend flipped to `MitoNet (Segment-Flow)` — verified end-to-end against real production data, while `empanada-dl` currently can't even install on Python 3.11 ([#31](https://github.com/martlj/napari-clemreg/issues/31), [PR #32](https://github.com/martlj/napari-clemreg/pull/32)).
 
 ### Fixed
 - `conf_threshold` mismatch between Segment-Flow's default (0.5) and `empanada-dl`'s bundled config (0.3) — was causing Segment-Flow to under-detect mitochondria relative to the bundled backend on identical input.
 - Segment-Flow subprocess failures caused by `uv run` leaving its venv's `bin/` on `PATH` ahead of the target conda env activated inside the generated Nextflow script, so the wrong Python kept resolving regardless of which env was "activated".
 
-## [0.5.0] — Live-testing bug-fixing pass (2026-09-22)
+## [0.4.1] — Live-testing bug-fixing pass (2026-09-22)
 
-Bugs found and fixed while running the "Run Registration" widget end-to-end against real data.
+Bugs found and fixed while running the "Run Registration" widget end-to-end against real data. A patch release: fixes only, with no new features and no change to the public widget/API surface. (The Qt-binding switch below only touches the README and CI config, not the package's dependencies.)
 
 ### Fixed
 - Sample data's FM channels displaying as corrupted/flattened stripes ([#17](https://github.com/martlj/napari-clemreg/issues/17), [PR #18](https://github.com/martlj/napari-clemreg/pull/18)).
@@ -62,6 +63,7 @@ Bugs found and fixed while running the "Run Registration" widget end-to-end agai
 - Zenodo sample data and MitoNet weights now cached locally (OS-appropriate app-cache dir via `pooch`) instead of re-downloading on every run ([#11](https://github.com/martlj/napari-clemreg/issues/11)).
 
 ### Changed
+- **Breaking (install):** now requires Python 3.11+ (`python_requires = >=3.11`, previously 3.7+), with most dependency pins loosened from `==` to `>=` ([#3](https://github.com/martlj/napari-clemreg/issues/3)). The widget/API surface is unchanged, so while pre-1.0 this is a minor bump, not a major one (plan §7.7).
 - Target napari version bumped from a `<=0.6.6` ceiling to latest stable (0.9.1 at the time) — the ceiling was driven by an assumption about coexisting with `empanada-napari` that no longer applies now Segment-Flow runs EM segmentation in its own isolated environment ([#4](https://github.com/martlj/napari-clemreg/issues/4)).
 
 ### Fixed
