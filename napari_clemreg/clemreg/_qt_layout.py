@@ -59,7 +59,10 @@ def group_into_collapsible(gui, title: str, field_names: list, expanded: bool = 
     return section
 
 
-_AUTO_SET_STYLESHEET = 'background-color: #ffe8a3;'
+# Explicit dark text colour -- confirmed live: napari's dark theme's
+# default (white) text is unreadable against this light amber background
+# without overriding it here too.
+_AUTO_SET_STYLESHEET = 'background-color: #ffe8a3; color: #000000;'
 
 
 def mark_auto_set(field_widget, value) -> None:
