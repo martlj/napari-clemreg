@@ -2,7 +2,7 @@
 
 test_dock_widget.py only checks that each widget builds. Almost every
 widget bug fixed so far (#23, #25, #27, #29, and the viewer-injection
-crash fixed in 9305d4b), plus #53 and the open #47 and #50, is in code that only
+crash fixed in 9305d4b), plus #50, #53 and the open #47, is in code that only
 runs once a widget is *called* or a button is *clicked*. These tests
 cover that code.
 
@@ -30,6 +30,7 @@ from napari.components import ViewerModel
 from napari.layers import Image, Labels, Points
 
 import napari_clemreg.clemreg.widget_components as widget_components
+from napari_clemreg.clemreg.exceptions import NoSegmentationError
 from napari_clemreg.widgets import (
     fixed_segmentation,
     moving_segmentation,
@@ -62,7 +63,8 @@ class Pipeline:
 
     `calls[name]` is the list of kwargs each stub was called with. Set
     `fixed_result` / `moving_result` to change what the segmentation
-    stubs return (e.g. 'No segmentation'), or `fixed_error` /
+    stubs return (an exception instance, such as NoSegmentationError, is
+    raised instead, as the real adapters do), or `fixed_error` /
     `sampling_error` to make EM segmentation or point cloud sampling
     raise.
     """
@@ -80,10 +82,14 @@ class Pipeline:
         self.calls['run_fixed_segmentation'].append(kwargs)
         if self.fixed_error is not None:
             raise self.fixed_error
+        if isinstance(self.fixed_result, Exception):
+            raise self.fixed_result
         return self.fixed_result
 
     def run_moving_segmentation(self, **kwargs):
         self.calls['run_moving_segmentation'].append(kwargs)
+        if isinstance(self.moving_result, Exception):
+            raise self.moving_result
         return self.moving_result
 
     def run_point_cloud_sampling(self, **kwargs):
@@ -109,12 +115,41 @@ def viewer(qtbot, monkeypatch):
     return model
 
 
+def _wait_for_workers(qtbot):
+    """Wait until every thread_worker, including queued ones, has finished."""
+    from qtpy.QtCore import QThreadPool
+
+    pool = QThreadPool.globalInstance()
+    qtbot.waitUntil(lambda: pool.waitForDone(50), timeout=TIMEOUT_MS)
+
+
+@pytest.fixture(autouse=True)
+def _no_real_em_backends(monkeypatch):
+    """Fail loudly if any test reaches a real EM segmentation backend.
+
+    A worker that outlives its test would otherwise find the real
+    functions once the stubs are removed, and could launch a real
+    Segment-Flow (Nextflow) run on a machine that has it installed.
+    """
+    from napari_clemreg.clemreg import segment_flow_segmentation
+
+    def refuse(*args, **kwargs):
+        raise AssertionError('a widget test reached the real Segment-Flow backend')
+
+    monkeypatch.setattr(segment_flow_segmentation, 'segment_flow_em_segmentation', refuse)
+
+
 @pytest.fixture
-def pipeline(monkeypatch):
+def pipeline(monkeypatch, qtbot):
     stubs = Pipeline()
     for name in stubs.calls:
         monkeypatch.setattr(widget_components, name, getattr(stubs, name))
-    return stubs
+    yield stubs
+    # Before the stubs are removed: a test can finish (e.g. once one
+    # segmentation step has reported its error) while other workers are
+    # still queued or running. Left running, they'd call the real
+    # pipeline, or crash once Qt objects are deleted.
+    _wait_for_workers(qtbot)
 
 
 @pytest.fixture
@@ -213,10 +248,9 @@ def test_split_registration_warping_adds_warped_image(qtbot, viewer, pipeline, i
     assert kwargs['registration_algorithm'] == 'Affine CPD'
 
 
-@pytest.mark.xfail(strict=True, reason='#50: split EM widget crashes on no segmentation')
 def test_split_em_segmentation_reports_no_segmentation(qtbot, viewer, pipeline, errors, images):
     __, em = images
-    pipeline.fixed_result = 'No segmentation'
+    pipeline.fixed_result = NoSegmentationError('No mitochondria found in the EM image')
     gui = fixed_segmentation_widget()
 
     gui(Fixed_Image=em)
@@ -225,10 +259,9 @@ def test_split_em_segmentation_reports_no_segmentation(qtbot, viewer, pipeline, 
     assert 'EM_segmentation' not in viewer.layers
 
 
-@pytest.mark.xfail(strict=True, reason='#50: split FM widget crashes on no segmentation')
 def test_split_fm_segmentation_reports_no_segmentation(qtbot, viewer, pipeline, errors, images):
     fm, __ = images
-    pipeline.moving_result = 'No segmentation'
+    pipeline.moving_result = NoSegmentationError('No mitochondria found in the FM image')
     gui = moving_segmentation_widget()
 
     gui(Moving_Image=fm)
@@ -338,8 +371,8 @@ def test_register_surfaces_runtime_error_from_registration(qtbot, viewer, pipeli
 
 
 def test_register_reports_no_segmentation(qtbot, viewer, pipeline, errors, images):
-    """#25: 'No segmentation' used to crash with an unrelated AttributeError."""
-    pipeline.moving_result = 'No segmentation'
+    """#25: no segmentation used to crash with an unrelated AttributeError."""
+    pipeline.moving_result = NoSegmentationError('No mitochondria found in the FM image')
     gui = _run_registration(images)
 
     with qtbot.capture_exceptions() as raised:
@@ -347,7 +380,7 @@ def test_register_reports_no_segmentation(qtbot, viewer, pipeline, errors, image
         qtbot.waitUntil(lambda: any('No mitochondria found' in m for m in errors), timeout=TIMEOUT_MS)
 
     assert pipeline.calls['run_point_cloud_sampling'] == []
-    _assert_also_reraised(raised, ValueError)
+    _assert_also_reraised(raised, NoSegmentationError)
 
 
 # --- Run Registration: the "Run this step" buttons ---------------------------

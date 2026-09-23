@@ -3,11 +3,12 @@
 from scipy.ndimage import gaussian_filter1d
 import cc3d
 from skimage import feature, exposure, filters
-from napari.layers import Image, Labels
-from napari.qt.threading import thread_worker
 import time
 import numpy as np
 from tqdm import tqdm
+
+from ._arrays import as_array
+from .exceptions import NoSegmentationError
 
 def _min_max_scaling(data):
     """
@@ -124,30 +125,31 @@ def _slice_adaptive_thresholding(img, thresh):
 
     return np.asarray(thresh_img)
 
-def log_segmentation(input: Image,
+def log_segmentation(input: np.ndarray,
                      sigma: float = 3,
                      threshold: float = 1.2):
     """ Apply log segmentation to user input.
 
     Parameters
     ----------
-    input : napari.layers.Image
-        Image to be segmented as napari Image layer
+    input : np.ndarray
+        Volume to segment. For backwards compatibility, an object with the
+        volume in `.data` (e.g. a napari Image layer) is also accepted.
     sigma : float
         Sigma value for 1D gaussian filter to be applied oto image before segmentation
     threshold : float
         Threshold value to apply to image
     Returns
     -------
-    Labels : napari.layers.Labels
-        Labels of the segmented moving image
+    np.ndarray
+        Binary segmentation of the volume
     """
-    print(f'Segmenting {input.name} with sigma={sigma} and threshold={threshold}...')
+    print(f'Segmenting {getattr(input, "name", "volume")} with sigma={sigma} and threshold={threshold}...')
     start_time = time.time()
 
     # img = np.clip(input.data, 0, np.percentile(input.data, 0.95))
 
-    volume = _min_max_scaling(input.data)
+    volume = _min_max_scaling(as_array(input))
     sigma_2 = sigma * 1.6
     log_iso_volume = _diff_of_gauss(volume, sigma, sigma_2)
     seg_volume = _slice_adaptive_thresholding(log_iso_volume, threshold)
@@ -201,51 +203,42 @@ def filter_binary_segmentation(input: np.ndarray,
 
     return within_thresh_binary_volume
 
-def filter_binary_segmentation_v1(input: Labels,
-                               percentile: tuple=(0,95)):
-    """Filters binary segmentation based on size
+
+def segment_fm(volume: np.ndarray,
+               sigma: float = 3,
+               threshold: float = 1.2,
+               size_filter: tuple = None,
+               roi=None) -> np.ndarray:
+    """Segment mitochondria in an FM volume (napari-free core API).
+
     Parameters
     ----------
-    input : napari.layers.Labels
-        Binary segmentation volume
-    percentile : int
-        Specifies threshold for filtering individual objects based on size
-        determined as the number of True pixels. Indiviudal objects are
-        found with 3D connected components.
+    volume : np.ndarray
+        The FM volume, (z, y, x).
+    sigma, threshold : float
+        Laplacian-of-Gaussian sigma and threshold.
+    size_filter : tuple of (lower, upper) percentiles, optional
+        Remove objects whose volume falls outside these percentiles.
+    roi : mask_roi.MaskRoi, optional
+        Keep only the segmentation inside this polygon and z range.
+
     Returns
     -------
-    clean_binary_volume : numpy.ndarray
-        A numpy array of the filtered binary volume
-    kwargs : dict
-        A dictionary of parameters for adding filtered binary volume to
-        napari viewer
+    np.ndarray
+        The segmentation.
+
+    Raises
+    ------
+    NoSegmentationError
+        If nothing is segmented (checked before the ROI is applied).
     """
-    start = time.time()
+    from .mask_roi import mask_roi
 
-    percentile = percentile[1]
-
-    # Find connected components
-    labels_out = cc3d.connected_components(input.data)
-    print(f'Identified {labels_out.max()} connected components.')
-
-    # Count occurences of each connected component
-    num_of_occurences = np.bincount(labels_out.flatten())
-    threshold = np.percentile(num_of_occurences, percentile)
-    print(f'Objects with size below {threshold} will be removed.')
-
-    elements_below_thresh = num_of_occurences < threshold
-    idx_below_thresh = np.where(elements_below_thresh)[0]
-    print(f'Removing {len(idx_below_thresh)} objects...')
-
-    # Creates boolean array of components that will be removed
-    below_thresh_binary_volume = np.isin(labels_out, idx_below_thresh)
-    # Essentially binary subtraction of filtered from input array
-    clean_binary_volume = np.logical_xor(input.data, below_thresh_binary_volume)
-
-    elapsed = time.time() - start
-    print(f'Finished execution after {elapsed} seconds.')
-
-    kwargs = dict(
-        name=input.name
-    )
-    return Labels(clean_binary_volume, **kwargs)
+    seg_volume = log_segmentation(volume, sigma=sigma, threshold=threshold)
+    if size_filter is not None:
+        seg_volume = filter_binary_segmentation(input=seg_volume, percentile=size_filter)
+    if np.all(seg_volume == seg_volume.flat[0]):
+        raise NoSegmentationError('No mitochondria found in the FM image')
+    if roi is not None:
+        seg_volume = mask_roi(seg_volume, roi.polygon, z_min=roi.z_min, z_max=roi.z_max)
+    return seg_volume

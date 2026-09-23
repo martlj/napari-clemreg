@@ -339,8 +339,6 @@ def _wire_step_buttons(widget):
             seg_volume = run_fixed_segmentation(Fixed_Image=fixed_image,
                                                 em_seg_axis=widget.em_seg_axis.value,
                                                 em_segmentation_backend=widget.em_segmentation_backend.value)
-            if isinstance(seg_volume, str):
-                raise ValueError('No mitochondria found in Fixed Image (EM)')
             return Labels(seg_volume.astype(np.int64), name='EM_segmentation', metadata=fixed_image.metadata)
 
         _thread()
@@ -394,8 +392,6 @@ def _wire_step_buttons(widget):
                                                        filter_segmentation=widget.filter_segmentation.value,
                                                        filter_size_lower=widget.filter_size_lower.value,
                                                        filter_size_upper=widget.filter_size_upper.value)
-            if isinstance(seg_volume_mask, str):
-                raise ValueError('No mitochondria found in Moving Image (FM)')
             return Labels(seg_volume_mask.astype(np.uint32), name='FM_segmentation', metadata=moving_image.metadata)
 
         _thread()
@@ -650,9 +646,6 @@ def make_run_registration(
     from ..clemreg._napari_compat import link_layers
 
     def _add_data(return_value):
-        if isinstance(return_value, str):
-            show_error('WARNING: No mitochondria in Moving Image')
-            return
         if isinstance(return_value, list):
             layers = []
             for image_layer in return_value:
@@ -684,15 +677,9 @@ def make_run_registration(
     def _run_moving_thread(**kwargs):
         from ..clemreg.widget_components import run_moving_segmentation
 
+        # Raises NoSegmentationError if nothing is found (#25); the
+        # errored handler below reports it.
         seg_volume_mask = run_moving_segmentation(**kwargs)
-        # run_moving_segmentation returns the string 'No segmentation'
-        # (not an array) when nothing was found -- confirmed live this
-        # crashes with a confusing AttributeError ('str' object has no
-        # attribute 'astype') instead of a clear message otherwise,
-        # since unlike the standalone moving_segmentation widget, this
-        # combined widget never checked for it before calling .astype().
-        if isinstance(seg_volume_mask, str):
-            raise ValueError('No mitochondria found in Moving Image (FM)')
         seg_volume_mask = Labels(seg_volume_mask.astype(np.uint32),
                                  name='FM_segmentation',
                                  metadata=Moving_Image.metadata)
@@ -708,13 +695,8 @@ def make_run_registration(
         from ..clemreg.widget_components import run_fixed_segmentation
         #Increasing levels of CLAHE
 
+        # Raises NoSegmentationError if nothing is found (#25).
         seg_volume = run_fixed_segmentation(**kwargs)
-        # Same as _run_moving_thread above: run_fixed_segmentation
-        # returns the string 'No segmentation' when nothing was found,
-        # not an array -- confirmed live this crashes with a confusing
-        # AttributeError instead of a clear message without this check.
-        if isinstance(seg_volume, str):
-            raise ValueError('No mitochondria found in Fixed Image (EM)')
         seg_volume = Labels(seg_volume.astype(np.int64),
                             name='EM_segmentation',
                             metadata=Fixed_Image.metadata)

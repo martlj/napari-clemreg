@@ -19,6 +19,14 @@ from napari.qt.threading import thread_worker
 """
 Moving segmentation
 """
+# The EM Segmentation Backend dropdown's labels (on_init_specs.py), mapped
+# to the core's backend names.
+EM_BACKENDS = {
+    'MitoNet (Segment-Flow)': 'segment-flow',
+    'MitoNet (empanada-dl)': 'empanada',
+}
+
+
 def run_moving_segmentation(Moving_Image,
                             Mask_ROI,
                             z_min,
@@ -29,28 +37,24 @@ def run_moving_segmentation(Moving_Image,
                             filter_size_lower,
                             filter_size_upper
 ):
+    """Adapter: FM segmentation from napari layers.
 
-    from ..clemreg.log_segmentation import log_segmentation, filter_binary_segmentation
-    from ..clemreg.mask_roi import mask_roi
+    Raises NoSegmentationError (from the core) if nothing is segmented.
+    """
+    from ..clemreg.log_segmentation import segment_fm
+    from ..clemreg.mask_roi import MaskRoi
 
-    seg_volume = log_segmentation(input=Moving_Image,
-                                  sigma=log_sigma,
-                                  threshold=log_threshold)
-
-    if filter_segmentation:
-        seg_volume = filter_binary_segmentation(input=seg_volume,
-                                                percentile=(filter_size_lower, filter_size_upper))
-
-    if len(set(seg_volume.ravel())) <= 1:
-        return 'No segmentation'
-
+    roi = None
     if Mask_ROI is not None:
-        seg_volume = mask_roi(input_arr=seg_volume,
-                              crop_mask=Mask_ROI,
-                              z_min=z_min,
-                              z_max=z_max)
+        assert len(Mask_ROI.data) == 1, 'Crop mask must contain one shape'
+        roi = MaskRoi(polygon=np.asarray(Mask_ROI.data[0]), z_min=z_min, z_max=z_max)
+    size_filter = (filter_size_lower, filter_size_upper) if filter_segmentation else None
 
-    return seg_volume
+    return segment_fm(Moving_Image.data,
+                      sigma=log_sigma,
+                      threshold=log_threshold,
+                      size_filter=size_filter,
+                      roi=roi)
 
 """
 Fixed segmentation
@@ -59,10 +63,15 @@ def run_fixed_segmentation(Fixed_Image,
                            em_seg_axis,
                            em_segmentation_backend='MitoNet (Segment-Flow)'
 ):
-    if em_segmentation_backend == 'MitoNet (Segment-Flow)':
-        from napari.utils.notifications import show_info
-        from ..clemreg.segment_flow_segmentation import segment_flow_em_segmentation
+    """Adapter: EM segmentation from a napari layer.
 
+    Raises NoSegmentationError (from the core) if nothing is segmented.
+    """
+    from napari.utils.notifications import show_info
+    from ..clemreg.em_segmentation import segment_em
+
+    backend = EM_BACKENDS[em_segmentation_backend]
+    if backend == 'segment-flow':
         # Segment-Flow shells out to Nextflow and can run for minutes with
         # no other GUI feedback (it prints progress to the terminal, but
         # that's easy to miss if you're only watching the napari window) --
@@ -72,17 +81,9 @@ def run_fixed_segmentation(Fixed_Image,
             'can take a while, especially on first run. Progress is printed '
             'to the terminal.'
         )
-        seg_volume = segment_flow_em_segmentation(Fixed_Image.data)
+    seg_volume = segment_em(Fixed_Image.data, backend=backend, three_axis=em_seg_axis)
+    if backend == 'segment-flow':
         show_info('EM segmentation via Segment-Flow finished.')
-    else:
-        from ..clemreg.empanada_segmentation import empanada_segmentation
-
-        seg_volume = empanada_segmentation(input=Fixed_Image.data,
-                                           axis_prediction=em_seg_axis)
-
-    if len(set(seg_volume.ravel())) <= 1:
-        return 'No segmentation'
-
     return seg_volume
 
 """

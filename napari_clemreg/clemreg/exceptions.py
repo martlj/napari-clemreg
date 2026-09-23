@@ -13,3 +13,11 @@ the `clemreg` core package in phase 2 of the split.
 
 class ClemregError(Exception):
     """Base class for errors raised by the CLEM-Reg pipeline."""
+
+
+class NoSegmentationError(ClemregError):
+    """Raised when segmentation finds nothing (every voxel has the same label).
+
+    Replaces the 'No segmentation' string the adapters used to return,
+    which callers had to remember to check for (#25, #50).
+    """
