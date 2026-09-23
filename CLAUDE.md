@@ -40,7 +40,7 @@ pytest napari_clemreg/_tests/test_warp_image_volume.py
 pytest napari_clemreg/_tests/test_warp_image_volume.py::test_name
 ```
 
-Note: `napari_clemreg/_tests/test_dock_widget.py` is currently a commented-out placeholder (from the cookiecutter template) — there is no active widget-level test coverage yet, but unit tests for the pure math in `clemreg/` exist under `napari_clemreg/_tests/` (see §0 of the modernisation plan below).
+Widget tests: `test_dock_widget.py` checks that every widget and dock widget builds. `test_widget_behaviour.py` runs them: it calls each widget and clicks each **Run this step** button against a `napari.components.ViewerModel` (no real window, so it works locally under `QT_QPA_PLATFORM=offscreen`), with the `widget_components.run_*` pipeline functions replaced by recording stubs. Add a test there for any change to widget wiring. Known open GUI bugs are pinned there as `xfail(strict=True)` tests naming their issue, so remove the marker when fixing one. Unit tests for the pure math in `clemreg/` are also under `napari_clemreg/_tests/` (see §0 of the modernisation plan below).
 
 **macOS: torch + napari can segfault on import** (two OpenMP runtimes loaded in one process — torch's bundled `libiomp5` vs. the conda-forge `libomp` napari's stack pulls in). `napari_clemreg/_tests/conftest.py` sets `KMP_DUPLICATE_LIB_OK=TRUE` and `OMP_NUM_THREADS=1` before those imports, so pytest runs are unaffected; if you import `napari_clemreg` (or `torch` then `napari`) directly in a script or REPL, set those env vars first. No-op on Linux CI.
 
