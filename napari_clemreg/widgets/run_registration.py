@@ -636,8 +636,10 @@ def make_run_registration(
             # ever produced once, by the final stage of the pipeline --
             # so its arrival marks the whole "Register" run as complete,
             # timed from just before the moving/fixed segmentation
-            # workers below were started.
-            print(f'Run Registration finished in {time.time() - start_time:.2f}s')
+            # workers below were started. mm:ss, not raw seconds -- a
+            # full run is realistically minutes, not sub-minute.
+            elapsed = int(time.time() - start_time)
+            print(f'Run Registration finished in {elapsed // 60:02d}:{elapsed % 60:02d}')
         else:
             print(f'Adding {return_value.name} to viewer...')
             viewer.add_layer(return_value)
