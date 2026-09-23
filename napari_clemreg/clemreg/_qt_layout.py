@@ -59,6 +59,45 @@ def group_into_collapsible(gui, title: str, field_names: list, expanded: bool = 
     return section
 
 
+# Explicit dark text colour -- confirmed live: napari's dark theme's
+# default (white) text is unreadable against this light amber background
+# without overriding it here too.
+_AUTO_SET_STYLESHEET = 'background-color: #ffe8a3; color: #000000;'
+
+
+def mark_auto_set(field_widget, value) -> None:
+    """Set a layer-typed field's value as the result of running a
+    pipeline step (rather than a deliberate user choice), and highlight
+    it amber to signal that -- distinct from show_error()'s red, which
+    already means "something's wrong" elsewhere in this plugin; this
+    just means "review if this isn't what you wanted".
+
+    Explicitly refreshes the field's own choices first: a magicgui
+    CategoricalWidget's `.value` setter raises ValueError for a value
+    not already in `.choices` (confirmed directly, no fallback), and
+    `value` here is typically a layer that was only just added to the
+    viewer -- relying on some other, external mechanism to have already
+    refreshed choices by this point (e.g. napari's dock-widget-level
+    layers.events wiring, whose own timing/ordering relative to this
+    call isn't guaranteed) is fragile; reset_choices() here is cheap and
+    makes this call self-sufficient regardless.
+    """
+    field_widget.reset_choices()
+    field_widget.value = value
+    field_widget.native.setStyleSheet(_AUTO_SET_STYLESHEET)
+
+
+def clear_highlight_on_user_select(field_widget) -> None:
+    """Revert a field's auto-set highlight the moment the user actually
+    interacts with it. Connected to the underlying Qt widget's
+    `activated` signal, which fires only on genuine user interaction --
+    unlike magicgui's own `.changed`, which fires identically for a
+    programmatic `.value = ...` assignment (mark_auto_set's own) and
+    would immediately undo its own highlight if wired there instead.
+    """
+    field_widget.native.activated.connect(lambda *_: field_widget.native.setStyleSheet(''))
+
+
 def wrap_in_scroll_area(widget: QWidget, max_height_fraction: float = 0.85) -> QScrollArea:
     """Wrap `widget` in a QScrollArea so the dock panel this becomes has a
     bounded height regardless of how much content it holds, instead of

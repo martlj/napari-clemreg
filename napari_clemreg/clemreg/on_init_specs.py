@@ -178,5 +178,22 @@ specs = {
 
     'Moving_Points':{'label': 'Fluorescence Microscopy (FM) Point Cloud'},
 
-    'Fixed_Points':{'label': 'Electron Microscopy (EM) Point Cloud'}
+    'Fixed_Points':{'label': 'Electron Microscopy (EM) Point Cloud'},
+
+    # "Run this step" buttons for the combined Run Registration widget's
+    # per-stage collapsible sections -- run just that stage using
+    # whichever layers currently sit in its own inputs (auto-set from a
+    # previous step, manually picked, or pre-existing), independent of
+    # the main "Register" call button which always runs the full
+    # pipeline from Moving_Image/Fixed_Image onward. Not consumed inside
+    # make_run_registration()'s own body -- wired to their .clicked
+    # signal in on_init(), same as this widget's other button-like
+    # fields (widget_header Labels are similarly unused in the body).
+    'run_em_segmentation_button':{'widget_type': 'PushButton', 'text': 'Run this step'},
+
+    'run_fm_segmentation_button':{'widget_type': 'PushButton', 'text': 'Run this step'},
+
+    'run_point_cloud_sampling_button':{'widget_type': 'PushButton', 'text': 'Run this step'},
+
+    'run_registration_and_warping_button':{'widget_type': 'PushButton', 'text': 'Run this step'}
 }
