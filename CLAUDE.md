@@ -80,3 +80,9 @@ The root package (`napari-clemreg`, the napari plugin) is defined via `setup.cfg
 `empanada-dl` (needed only by the bundled EM Segmentation/MitoNet widget, along with `torch`) is **not** in `install_requires` — it lives in its own `empanada` extra (`pip install napari-clemreg[empanada]`). It's still hard-pinned at `==0.1.7`, and its own `numpy==1.22` pin still has no Python 3.11 wheels, so that one extra still won't resolve on Python 3.11 (see [issue #5](https://github.com/martlj/napari-clemreg/issues/5)) — but this is now scoped to just that extra rather than blocking the base install entirely, since a normal `pip install napari-clemreg` (or the `segment-flow` extra, see below) resolves and works fine without it (verified empirically, both in `clemreg-py311-verify` and via a clean dependency-resolution dry run against Python 3.11).
 
 For EM segmentation on Python 3.11 today, use the `segment-flow` extra instead (`clemreg/segment_flow_segmentation.py`) — see the widgets' `EM Segmentation Backend` dropdown.
+
+## Versioning
+
+`setup.cfg`'s `version` (currently `0.2.1`) hasn't been bumped since this fork's modernisation work began, despite several minor-version-worthy batches of work having landed — see [CHANGELOG.md](CHANGELOG.md)'s status note and [issue #1](https://github.com/martlj/napari-clemreg/issues/1) for the real release/versioning decision, not yet made.
+
+When a merged (or about-to-be-merged) change is new-feature- or otherwise minor-version-worthy, suggest a follow-up commit that bumps `setup.cfg`'s `version` (SemVer) and adds the corresponding entry to `CHANGELOG.md` — don't apply it unilaterally, since versioning/release timing is the user's call.
