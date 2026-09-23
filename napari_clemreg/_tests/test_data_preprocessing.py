@@ -57,6 +57,21 @@ def test_get_pixelsize_defaults_when_image_description_missing():
     assert unit == 'micron'
 
 
+def test_get_pixelsize_parses_decimal_and_fraction_spacing():
+    assert get_pixelsize({'ImageDescription': 'unit=micron\nspacing=0.25\n'})[2] == 0.25
+    assert get_pixelsize({'ImageDescription': 'unit=micron\nspacing=1/4\n'})[2] == 0.25
+
+
+def test_get_pixelsize_never_evaluates_metadata(tmp_path):
+    marker = tmp_path / 'marker'
+    metadata = {'ImageDescription': f'unit=micron\nspacing=__import__("pathlib").Path({str(marker)!r}).touch() or 0.1\n'}
+
+    x, y, z, unit = get_pixelsize(metadata)
+
+    assert not marker.exists()
+    assert z == 1
+
+
 def test_zoom_values():
     xy_zoom, z_zoom = _zoom_values(xy=10, z=20, xy_ref=5, z_ref=4)
     assert xy_zoom == pytest.approx(2.0)
