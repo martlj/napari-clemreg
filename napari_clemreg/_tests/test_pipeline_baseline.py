@@ -11,6 +11,11 @@ The pipeline is deterministic (checked across separate processes), so
 the tolerances are tight. They are not zero, because floating-point
 results can differ very slightly between platforms and BLAS builds.
 
+Point clouds are compared as *sets* of points (rows sorted before
+comparing). open3d returns the same points in a different order on
+Linux and macOS, while every image, matrix and segmentation matches
+exactly, so the order isn't part of the result.
+
 It covers:
 - FM segmentation (LoG), with and without the size filter and a Mask ROI
 - point cloud sampling, with FM and EM at different, anisotropic pixel sizes
@@ -144,9 +149,22 @@ def test_same_outputs_as_baseline(outputs, baseline):
     assert sorted(outputs) == sorted(baseline), 'set of outputs changed'
 
 
+def _is_point_cloud(key):
+    return key.endswith('_points') or key.endswith('/transformed/data')
+
+
+def _sorted_rows(points):
+    # Order by rounded coordinates, so tiny floating-point differences
+    # can't swap two neighbouring points; then compare the full values.
+    order = np.lexsort(np.round(points, 6).T[::-1])
+    return points[order]
+
+
 @pytest.mark.parametrize('key', sorted(np.load(BASELINE).files) if BASELINE.exists() else [])
 def test_output_matches_baseline(outputs, baseline, key):
     actual, expected = outputs[key], baseline[key]
+    if _is_point_cloud(key):
+        actual, expected = _sorted_rows(actual), _sorted_rows(expected)
     assert actual.shape == expected.shape
     assert actual.dtype == expected.dtype
     if np.issubdtype(expected.dtype, np.integer) or expected.dtype == bool:
