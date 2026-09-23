@@ -26,7 +26,7 @@ The pipeline code lives in `napari_clemreg/clemreg/`. Most modules use napari on
 | `empanada_segmentation.py` | none | core, `[empanada]` extra |
 | `segment_flow_segmentation.py` | none | core, `[segment-flow]` extra |
 | `widget_components.py` | the four `run_*` functions both GUIs call; `show_info`; `'No segmentation'` string returns; broken JSON helpers (#47) | **split**: pipeline steps go to the core; the `run_*` functions stay in the plugin as adapters (see below) |
-| `sample_data.py` | none, but it builds napari layer tuples | plugin (see decision D5) |
+| `sample_data.py` | none; the pooch downloads and metadata return napari layer tuples | core as `clemreg.data` (arrays plus `PixelSize`); the plugin wraps them as layer tuples for `napari.yaml` (D5) |
 | `_reader.py` | none (bioio) | napari reader hook in the plugin; pixel-size reading in the core as `clemreg.io` |
 | `on_init_specs.py`, `_qt_layout.py`, `_napari_compat.py`, `widgets/*`, `napari.yaml` | UI | plugin |
 
@@ -64,7 +64,7 @@ What's different from the 2026-09-21 plan:
 
 ### Types
 
-- **`PixelSize(z, y, x)`**: a frozen dataclass, in **micrometres**. bioio already reports µm. Parsing `pint` strings stays in the plugin, which converts the widget's `QuantityEdit` values at the boundary (D2).
+- **`PixelSize(z, y, x)`**: a frozen dataclass, in **micrometres**. bioio already reports µm. Parsing `pint` strings stays in the plugin, which converts the widget's `QuantityEdit` values at the boundary (D2). Moving from today's nm to µm doesn't change results: the pipeline only uses *ratios* of pixel sizes when resampling. **Voxel Size** is measured in pixels of the resampled working grid, not in physical units, so its meaning, and saved parameter files, are unaffected.
 - **`Params`**: a dataclass of every pipeline parameter (the fields of the widget sections, with the same defaults as `on_init_specs.py`), with `to_json()` / `from_json()`. Run Registration's **Save parameters** and **Parameters from JSON** use it, which fixes #47. The field names are the JSON keys, and `from_json` ignores unknown keys, so old files still load.
 - **`Result`**: the segmentations, point clouds, `Transform`, and warped channels with their pixel size. It's what the headless path returns and what MoBIE export (#6) will take as input.
 
@@ -94,25 +94,31 @@ napari-clemreg/                  # repo; the root package stays the plugin
 
 The plugin stays at the repo root, so paths in CI, tox, `napari.yaml` package data and the docs don't change, and `git blame` history is kept. The root `pyproject.toml` declares a [uv workspace](https://docs.astral.sh/uv/concepts/projects/workspaces/) with `packages/clemreg` as a member, so a single `uv pip install -e ".[segment-flow]"` gives an editable install of both packages (D1).
 
+Only uv knows to take `clemreg` from the workspace. Until `clemreg 0.1.0` is on PyPI (only the `0.0.0` placeholder is there now), the plugin's `clemreg>=0.1,<0.2` requirement can't be met from PyPI. So a plain `pip install -e .` fails to resolve during development, and so does tox, which uses pip. Phase 2 therefore has to:
+
+- document the pip route as `pip install -e packages/clemreg -e ".[segment-flow]"` (core first);
+- switch tox to [`tox-uv`](https://github.com/tox-dev/tox-uv), or install `packages/clemreg` explicitly in tox's `deps`;
+- and, when releasing (phase 4), publish `clemreg` before `napari-clemreg`.
+
 **Core dependencies:** numpy, scipy, scikit-image, open3d, probreg, transforms3d, connected-components-3d, tqdm.
 **Core extras:** `[segment-flow]` (aiod_utils), `[empanada]` (empanada-dl, torch; still blocked on Python 3.11, #5), `[io]` (bioio, bioio-tifffile), and later `[mobie]`.
 **Plugin dependencies:** `clemreg>=0.1,<0.2`, `napari>=0.6`, magicgui, superqt, pint, pooch, and `clemreg[io]`. The plugin's `[segment-flow]` and `[empanada]` extras just pass through to the core's.
 
 **Tests:** the pure tests (maths, the synthetic end-to-end registration) move to `packages/clemreg/tests`, and a separate CI job runs them without Qt or xvfb. The widget, real-Viewer and GUI end-to-end tests stay with the plugin.
 
-**Backwards compatibility:** for one release, `napari_clemreg.clemreg.<module>` re-exports from `clemreg` and raises a `DeprecationWarning`, so the batch notebook and anyone else importing the internals keep working (D4).
+**Backwards compatibility:** `napari_clemreg.clemreg.<module>` re-exports from `clemreg` and raises a `DeprecationWarning`, so anyone importing the internals keeps working. The people most likely to do that are running copies of the batch notebook published with the paper, and they won't upgrade in step with releases. So the re-exports stay **until 1.0.0, or for at least six months after the split is released, whichever is later** (D4).
 
 ## Phases
 
 Each phase is one PR (or a few), leaves the tests passing, and has its own sub-issue under #7.
 
-0. **Confirm the decisions** below (#57).
-1. **Remove napari from the core modules, without moving any files** (#58). Arrays in and out, layer handling moved into the adapters, plus `PixelSize`, `Params`, `Transform` and the exceptions. Add the import-boundary test and delete the legacy functions. The widget behaviour tests are the acceptance test. This also fixes #47, #50 and #53. Most of the risk is in this phase.
-2. **Move the code into `packages/clemreg`** (#59). Add both `pyproject.toml` files, the uv workspace and the compatibility re-exports, and give the core its own CI job that doesn't need Qt.
-3. **Headless path** (#60): `run_clemreg` and `Result`, with the batch notebook switched to `import clemreg`, and the README and CLAUDE.md updated for the two-package install.
-4. **Release** (#61): `clemreg 0.1.0` (its first real release after the `0.0.0` placeholder), and the next minor `napari-clemreg`, marked **Breaking** because internal import paths change (see CLAUDE.md § Versioning).
+0. **Confirm the decisions** below (#57). **Before phase 2 moves any files**, get the upstream owner's agreement to the new layout and import paths (D1, D4): this work is meant to go upstream as a PR (plan §7). Phase 1 is a refactor inside the current layout, so it doesn't need to wait.
+1. **Remove napari from the core modules, without moving any files** (#58). Arrays in and out, layer handling moved into the adapters, plus `PixelSize`, `Params`, `Transform`, `Result` and the exceptions, and the sample-data loaders as napari-free functions (D5). Add the import-boundary test and delete the legacy functions. The widget behaviour tests are the acceptance test. This also fixes #47, #50 and #53. Most of the risk is in this phase.
+2. **Move the code into `packages/clemreg`** (#59). Add both `pyproject.toml` files, the uv workspace, the pip and tox install routes described under *Layout and packaging*, and the compatibility re-exports, and give the core its own CI job that doesn't need Qt. Needs the upstream owner's agreement first (see phase 0).
+3. **Headless path** (#60): `run_clemreg`, with the batch notebook switched to `import clemreg` and `clemreg.data` for its sample data (no napari import), and the README and CLAUDE.md updated for the two-package install.
+4. **Release** (#61): `clemreg 0.1.0` (its first real release after the `0.0.0` placeholder), and the next minor `napari-clemreg`, marked **Breaking** because internal import paths change (see CLAUDE.md § Versioning). Publish `clemreg` first, because the plugin requires it.
 
-The MoBIE exporter (#6) comes after the release, written directly against `Result` and `Transform` in the core, as an additive `clemreg 0.2.0`. The old plan built it before the split to avoid moving it later. Now that there are widget tests, splitting first is simpler, and it keeps MoBIE from holding up the core's first release.
+The MoBIE exporter (#6) is written directly against `Result` and `Transform` in the core. It can **start as soon as phase 1 merges**, since that's when those types exist, and doesn't need to wait for the packaging work or the release. It ships as an additive `clemreg 0.2.0`. The old plan built it before the split to avoid moving it later. Now that there are widget tests, splitting first is simpler, and it keeps MoBIE from holding up the core's first release.
 
 ## Risks
 
@@ -123,15 +129,15 @@ The MoBIE exporter (#6) comes after the release, written directly against `Resul
 
 ## Decisions log
 
-Each decision is **Proposed** until confirmed in the phase 0 sub-issue.
+Each decision is **Proposed** until confirmed in the phase 0 sub-issue (#57). D1–D6 were confirmed on 2026-09-23, with D1 and D4 amended and D5 reversed from what was first proposed.
 
 | # | Decision | Options considered | Chosen | Status |
 |---|---|---|---|---|
-| D1 | Repository layout | (a) both packages under `packages/*/src`; (b) plugin stays at the root and the core goes in `packages/clemreg`, as a uv workspace; (c) two repositories | (b): least disruption to paths, CI and history. Revisit (c) only if the release cadences diverge. | Proposed, 2026-09-23 |
-| D2 | Where unit handling lives | core parses `pint`; core takes plain numbers | Core takes a `PixelSize` in µm. `pint` stays in the plugin. | Proposed, 2026-09-23 |
-| D3 | Error reporting | string sentinels; `RuntimeError`; own exception classes | `ClemregError(Exception)` subclasses, never `RuntimeError` (#25, #50, #53) | Proposed, 2026-09-23 |
-| D4 | Old import paths | break them; keep re-exports | Re-export with a `DeprecationWarning` for one release | Proposed, 2026-09-23 |
-| D5 | Where sample data lives | plugin; a napari-free `clemreg.data` | Plugin for now: it builds napari layer tuples, and the metadata is being redone in #42. Revisit when #42 lands. | Proposed, 2026-09-23 |
-| D6 | Order of the split and MoBIE | MoBIE first (old plan); split first | Split first, then MoBIE directly in the core, released as `clemreg 0.2.0` | Proposed, 2026-09-23 |
+| D1 | Repository layout | (a) both packages under `packages/*/src`; (b) plugin stays at the root and the core goes in `packages/clemreg`, as a uv workspace; (c) two repositories | (b): least disruption to paths, CI and history. Revisit (c) only if the release cadences diverge. Amended: pip and tox can't take `clemreg` from the workspace, so phase 2 documents a core-first pip install and moves tox to `tox-uv` (or installs the core explicitly), and phase 4 publishes the core first. Needs the upstream owner's agreement before phase 2. | Accepted, 2026-09-23 (amended) |
+| D2 | Where unit handling lives | core parses `pint`; core takes plain numbers | Core takes a `PixelSize` in µm. `pint` stays in the plugin. Results don't change, because only pixel-size ratios are used, and Voxel Size is in working-grid pixels. | Accepted, 2026-09-23 |
+| D3 | Error reporting | string sentinels; `RuntimeError`; own exception classes | `ClemregError(Exception)` subclasses, never `RuntimeError` (#25, #50, #53). On its own this doesn't fully fix #53: the adapters must also stop other `RuntimeError`s reaching generator workers. | Accepted, 2026-09-23 |
+| D4 | Old import paths | break them; keep re-exports | Re-export with a `DeprecationWarning` until 1.0.0, or for at least six months after the split is released, whichever is later. Amended from "one release": copies of the published batch notebook won't upgrade in step. Needs the upstream owner's agreement before phase 2. | Accepted, 2026-09-23 (amended) |
+| D5 | Where sample data lives | plugin; a napari-free `clemreg.data` | `clemreg.data`, returning arrays and a `PixelSize`; the plugin wraps them as layer tuples. Reversed from "plugin": the headless batch notebook uses the sample data, and `sample_data.py` has no napari imports anyway. The #42 metadata rework fits either way. | Accepted, 2026-09-23 (reversed) |
+| D6 | Order of the split and MoBIE | MoBIE first (old plan); split first | Split first, then MoBIE directly in the core, released as `clemreg 0.2.0`. MoBIE can start once phase 1 merges; it doesn't wait for phases 2–4. | Accepted, 2026-09-23 |
 | D7 | Keep the split widgets? | retire them in favour of Run Registration's step buttons; keep them | Out of scope for the split. They share the adapters either way (#35). | Open |
 | D8 | Widget framework | keep magicgui; rewrite the widgets in raw Qt (as AIoD's plugin does) | Out of scope for the split. The adapters don't depend on either, so this can be decided later (see ROADMAP.md). | Open |

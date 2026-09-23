@@ -27,7 +27,7 @@ Changes to tests, CI and project docs, with no effect on the installed package.
 - Widget behaviour tests: every widget and **Run this step** button is run against a napari `ViewerModel` with stubbed pipeline functions. Open GUI bugs (#47, #48, #49, #50, #53) are pinned as strict expected failures ([PR #54](https://github.com/martlj/napari-clemreg/pull/54)).
 - Real-Viewer smoke tests on Linux CI, a slow end-to-end test of Run Registration on the real sample data, and a `slow tests` workflow that runs `--run-slow` after merges, weekly and on demand ([PR #55](https://github.com/martlj/napari-clemreg/pull/55), [PR #63](https://github.com/martlj/napari-clemreg/pull/63)).
 - `modernisation` is now the fork's default branch, so "Fixes #N" closes issues on merge and scheduled workflows run ([PR #56](https://github.com/martlj/napari-clemreg/pull/56)).
-- Package split design in [docs/design/package-split.md](docs/design/package-split.md), replacing §6 of the plan, with phases tracked in #57–#61 ([PR #62](https://github.com/martlj/napari-clemreg/pull/62)).
+- Package split design in [docs/design/package-split.md](docs/design/package-split.md), replacing §6 of the plan, with phases tracked in #57–#61 ([PR #62](https://github.com/martlj/napari-clemreg/pull/62)). Decisions D1–D6 accepted, with D1 and D4 amended and D5 reversed ([PR #67](https://github.com/martlj/napari-clemreg/pull/67)).
 - Versioning rules (patch, minor, major, and when to declare 1.0.0), with this changelog's batches renumbered to match ([PR #44](https://github.com/martlj/napari-clemreg/pull/44), [PR #45](https://github.com/martlj/napari-clemreg/pull/45), [PR #46](https://github.com/martlj/napari-clemreg/pull/46)).
 
 ## [0.5.0] — AI-on-Demand Segment-Flow integration (2026-09-22 — 2026-09-23)
