@@ -2,7 +2,7 @@
 
 test_dock_widget.py only checks that each widget builds. Almost every
 widget bug fixed so far (#23, #25, #27, #29, and the viewer-injection
-crash fixed in 9305d4b), plus the open #47, #50 and #53, is in code that only
+crash fixed in 9305d4b), plus #53 and the open #47 and #50, is in code that only
 runs once a widget is *called* or a button is *clicked*. These tests
 cover that code.
 
@@ -62,8 +62,9 @@ class Pipeline:
 
     `calls[name]` is the list of kwargs each stub was called with. Set
     `fixed_result` / `moving_result` to change what the segmentation
-    stubs return (e.g. 'No segmentation'), or `fixed_error` to make EM
-    segmentation raise.
+    stubs return (e.g. 'No segmentation'), or `fixed_error` /
+    `sampling_error` to make EM segmentation or point cloud sampling
+    raise.
     """
 
     def __init__(self):
@@ -73,6 +74,7 @@ class Pipeline:
         self.fixed_result = _labels_array()
         self.moving_result = _labels_array()
         self.fixed_error = None
+        self.sampling_error = None
 
     def run_fixed_segmentation(self, **kwargs):
         self.calls['run_fixed_segmentation'].append(kwargs)
@@ -86,6 +88,8 @@ class Pipeline:
 
     def run_point_cloud_sampling(self, **kwargs):
         self.calls['run_point_cloud_sampling'].append(kwargs)
+        if self.sampling_error is not None:
+            raise self.sampling_error
         # The real function's layer names; run_registration.py relies on
         # them to auto-set and highlight the next step's inputs.
         return _points('Moving_point_cloud'), _points('Fixed_point_cloud')
@@ -217,7 +221,7 @@ def test_split_em_segmentation_reports_no_segmentation(qtbot, viewer, pipeline, 
 
     gui(Fixed_Image=em)
 
-    qtbot.waitUntil(lambda: errors, timeout=TIMEOUT_MS)
+    qtbot.waitUntil(lambda: bool(errors), timeout=TIMEOUT_MS)
     assert 'EM_segmentation' not in viewer.layers
 
 
@@ -229,7 +233,7 @@ def test_split_fm_segmentation_reports_no_segmentation(qtbot, viewer, pipeline, 
 
     gui(Moving_Image=fm)
 
-    qtbot.waitUntil(lambda: errors, timeout=TIMEOUT_MS)
+    qtbot.waitUntil(lambda: bool(errors), timeout=TIMEOUT_MS)
     assert 'FM_segmentation' not in viewer.layers
 
 
@@ -282,16 +286,55 @@ def test_register_reports_em_failure_and_does_not_register(qtbot, viewer, pipeli
     _assert_also_reraised(raised, ValueError)
 
 
-@pytest.mark.xfail(strict=True, reason='#53: RuntimeError from EM segmentation silently hangs Register')
 def test_register_reports_segment_flow_failure(qtbot, viewer, pipeline, errors, images):
+    """#53: Segment-Flow's errors used to subclass RuntimeError, which
+    superqt's generator workers swallow, so Register silently hung."""
     from napari_clemreg.clemreg.segment_flow_segmentation import SegmentFlowNotAvailable
 
     pipeline.fixed_error = SegmentFlowNotAvailable('Nextflow not found')
     gui = _run_registration(images)
 
-    with qtbot.capture_exceptions():
+    with qtbot.capture_exceptions() as raised:
         gui()
-        qtbot.waitUntil(lambda: any('EM segmentation failed' in m for m in errors), timeout=TIMEOUT_MS)
+        qtbot.waitUntil(lambda: any('Nextflow not found' in m for m in errors), timeout=TIMEOUT_MS)
+        qtbot.wait(200)
+
+    assert pipeline.calls['run_point_cloud_sampling'] == []
+    _assert_also_reraised(raised, SegmentFlowNotAvailable)
+
+
+def test_register_reports_runtime_error_from_segmentation(qtbot, viewer, pipeline, errors, images):
+    """#53: any other RuntimeError (from numpy, torch, ...) must be
+    reported too, not swallowed."""
+    from napari_clemreg.clemreg.exceptions import ClemregError
+
+    pipeline.fixed_error = RuntimeError('CUDA out of memory')
+    gui = _run_registration(images)
+
+    with qtbot.capture_exceptions() as raised:
+        gui()
+        qtbot.waitUntil(lambda: any('CUDA out of memory' in m for m in errors), timeout=TIMEOUT_MS)
+        qtbot.wait(200)
+
+    assert pipeline.calls['run_point_cloud_sampling'] == []
+    _assert_also_reraised(raised, ClemregError)
+
+
+def test_register_surfaces_runtime_error_from_registration(qtbot, viewer, pipeline, images):
+    """#53: a RuntimeError in the registration worker (e.g. from
+    open3d) must reach the user rather than end the run silently."""
+    from napari_clemreg.clemreg.exceptions import ClemregError
+
+    pipeline.sampling_error = RuntimeError('open3d failed')
+    gui = _run_registration(images)
+
+    with qtbot.capture_exceptions() as raised:
+        gui()
+        qtbot.waitUntil(lambda: bool(raised), timeout=TIMEOUT_MS)
+
+    assert [type(exc) for __, exc, __ in raised] == [ClemregError]
+    assert 'open3d failed' in str(raised[0][1])
+    assert 'FM_warped' not in viewer.layers
 
 
 def test_register_reports_no_segmentation(qtbot, viewer, pipeline, errors, images):
