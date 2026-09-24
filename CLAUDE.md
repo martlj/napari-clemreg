@@ -112,6 +112,15 @@ Keep [CHANGELOG.md](CHANGELOG.md) and [ROADMAP.md](ROADMAP.md) in step with ever
 3. Tick task-list items the merge completed, on the issue itself and on tracking issues such as #8 and #58.
 4. Don't close anything ambiguous, e.g. partly done, or needing a decision or a manual check. List those for the user instead.
 
+## Issue labels for what's waiting
+
+Two labels mark issues that can't move forward through ordinary work. Each labelled issue has a comment saying exactly what it's waiting on.
+
+- **`needs-decision`**: waiting on a decision from the maintainer, e.g. what output a feature should produce, or an open decision in the design doc. [All issues with it](https://github.com/martlj/napari-clemreg/issues?q=is%3Aopen+label%3Aneeds-decision).
+- **`blocked`**: waiting on something outside this repo, such as a person (e.g. the upstream owner) or an upstream project (e.g. `empanada-dl`). An issue that's just waiting for the previous phase or sub-issue isn't `blocked`; that order is already shown by the sub-issues. [All issues with it](https://github.com/martlj/napari-clemreg/issues?q=is%3Aopen+label%3Ablocked).
+
+Keep them current as part of the post-merge check, and whenever a decision is made or a blocker clears: remove the label, with a comment recording the decision or what unblocked it, and update the design doc's decisions log if relevant. Add the label, with its comment, when new work turns out to need a decision or depends on someone else. Decisions with no issue of their own (e.g. D7 and D8 in the design doc) stay in the ROADMAP's *Open decisions* section.
+
 ## Versioning
 
 `setup.cfg`'s `version` (currently `0.2.1`) hasn't been bumped since this fork's modernisation work began, despite several release-worthy batches of work having landed. See [CHANGELOG.md](CHANGELOG.md)'s status note and [issue #1](https://github.com/martlj/napari-clemreg/issues/1) for the real release/versioning decision, which hasn't been made yet.
