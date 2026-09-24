@@ -137,7 +137,6 @@ Alternatively, they can be run individually with the numbered widgets.
 **Parameter sections.** Each section is collapsed by default. Each has its own **Run this step** button, which runs just that step on whatever layers are in the section's inputs. When a step finishes, its output is filled into the next section's input and highlighted in amber, so you can step through the pipeline or start partway through from layers you already have.
 
 1. **EM Segmentation Parameters**
-   - **Prediction Across Three Axis**: run MitoNet along all three axes of the EM volume and combine the predictions. Only used by the `MitoNet (empanada-dl)` backend; it is ignored with the default backend ([#48](https://github.com/martlj/napari-clemreg/issues/48)).
    - **EM Segmentation Backend**: `MitoNet (Segment-Flow)` (default) or `MitoNet (empanada-dl)`. Both run the same model; see [EM segmentation with MitoNet](#em-segmentation-with-mitonet).
 2. **LoG Segmentation Parameters** (FM segmentation)
    - **Sigma**: sigma of the Laplacian of Gaussian filter.

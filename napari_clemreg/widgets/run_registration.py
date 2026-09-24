@@ -132,7 +132,7 @@ def on_init(widget):
     # Fixed_Image onward. See on_init_specs.py's run_*_button entries and
     # the click handlers wired below.
     group_into_collapsible(widget, 'EM Segmentation Parameters',
-                           ['em_seg_axis', 'em_segmentation_backend', 'run_em_segmentation_button'])
+                           ['em_segmentation_backend', 'run_em_segmentation_button'])
     group_into_collapsible(widget, 'LoG Segmentation Parameters',
                            ['log_sigma', 'log_threshold', 'filter_segmentation',
                             'filter_size_lower', 'filter_size_upper', 'run_fm_segmentation_button'])
@@ -337,7 +337,6 @@ def _wire_step_buttons(widget):
         })
         def _thread():
             seg_volume = run_fixed_segmentation(Fixed_Image=fixed_image,
-                                                em_seg_axis=widget.em_seg_axis.value,
                                                 em_segmentation_backend=widget.em_segmentation_backend.value)
             return Labels(seg_volume.astype(np.int64), name='EM_segmentation', metadata=fixed_image.metadata)
 
@@ -505,7 +504,6 @@ def _wire_step_buttons(widget):
                params_from_json=specs['params_from_json'],
                load_json_file=specs['load_json_file'],
 
-               em_seg_axis=specs['em_seg_axis'],
                em_segmentation_backend=specs['em_segmentation_backend'],
 
                log_sigma=specs['log_sigma'],
@@ -564,7 +562,6 @@ def make_run_registration(
         params_from_json,
         load_json_file,
 
-        em_seg_axis,
         em_segmentation_backend,
         run_em_segmentation_button,
 
@@ -611,7 +608,6 @@ def make_run_registration(
     z_min
     z_max
     registration_algorithm
-    em_seg_axis
     em_segmentation_backend
     log_sigma
     log_threshold
@@ -840,7 +836,6 @@ def make_run_registration(
     worker_moving.start()
 
     worker_fixed = _run_fixed_thread(Fixed_Image=Fixed_Image,
-                                     em_seg_axis=em_seg_axis,
                                      em_segmentation_backend=em_segmentation_backend)
     worker_fixed.returned.connect(_class_setter_fixed)
     worker_fixed.finished.connect(_finished_fixed_emitter)

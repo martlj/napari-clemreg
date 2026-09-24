@@ -11,13 +11,11 @@ from ..clemreg._qt_layout import wrap_in_scroll_area
                widget_header={'widget_type': 'Label',
                               'label': f'<h2 text-align="left">Electron Microscopy Segmentation</h2>'},
                Fixed_Image=specs['Fixed_Image'],
-               em_seg_axis=specs['em_seg_axis'],
                em_segmentation_backend=specs['em_segmentation_backend'],
                )
 def fixed_segmentation_widget(viewer: 'napari.viewer.Viewer',
                               widget_header,
                               Fixed_Image: Image,
-                              em_seg_axis: bool,
                               em_segmentation_backend: str
                               ):
     """
@@ -33,8 +31,6 @@ def fixed_segmentation_widget(viewer: 'napari.viewer.Viewer',
         Heading of the widget
     Fixed_Image :
         The EM Image
-    em_seg_axis :
-        Option to run segmentation across three axis
     em_segmentation_backend :
         Which EM segmentation backend to use: the bundled empanada-dl
         (MitoNet), or Crick's AI-on-Demand (Segment-Flow) pipeline
@@ -77,7 +73,6 @@ def fixed_segmentation_widget(viewer: 'napari.viewer.Viewer',
         return
 
     _run_fixed_thread(Fixed_Image=Fixed_Image,
-                      em_seg_axis=em_seg_axis,
                       em_segmentation_backend=em_segmentation_backend)
 
 
