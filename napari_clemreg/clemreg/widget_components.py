@@ -60,7 +60,6 @@ def run_moving_segmentation(Moving_Image,
 Fixed segmentation
 """
 def run_fixed_segmentation(Fixed_Image,
-                           em_seg_axis,
                            em_segmentation_backend='MitoNet (Segment-Flow)'
 ):
     """Adapter: EM segmentation from a napari layer.
@@ -81,7 +80,7 @@ def run_fixed_segmentation(Fixed_Image,
             'can take a while, especially on first run. Progress is printed '
             'to the terminal.'
         )
-    seg_volume = segment_em(Fixed_Image.data, backend=backend, three_axis=em_seg_axis)
+    seg_volume = segment_em(Fixed_Image.data, backend=backend)
     if backend == 'segment-flow':
         show_info('EM segmentation via Segment-Flow finished.')
     return seg_volume
@@ -283,7 +282,6 @@ Helper functions
 def _create_json_file(path_to_json):
     dictionary = {
         "registration_algorithm": registration_algorithm,
-        "em_seg_axis": em_seg_axis,
         "log_sigma": log_sigma,
         "log_threshold": log_threshold,
         "custom_z_zoom": custom_z_zoom,
@@ -314,7 +312,6 @@ def load_from_json():
         data = json.load(f)
         try:
             registration_algorithm = data["registration_algorithm"]
-            em_seg_axis = data["em_seg_axis"]
             log_sigma = data["log_sigma"]
             log_threshold = data["log_threshold"]
             custom_z_zoom = data["custom_z_zoom"],

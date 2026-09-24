@@ -28,10 +28,6 @@ specs = {
                     'mode': 'r',
                     'filter': '*.json'},
 
-    'em_seg_axis':{'text': 'Prediction Across Three Axis',
-                 'widget_type': 'CheckBox',
-                 'value': False},
-
     # Both choices run the exact same MitoNet model -- only how it's
     # invoked differs -- so both names lead with "MitoNet" to make that
     # explicit rather than reading like two different models.

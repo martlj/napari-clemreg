@@ -192,7 +192,6 @@ def _is_highlighted(field):
 def test_split_em_segmentation_adds_layer_and_passes_parameters(qtbot, viewer, pipeline, images):
     __, em = images
     gui = fixed_segmentation_widget()
-    gui.em_seg_axis.value = True
     gui.em_segmentation_backend.value = 'MitoNet (empanada-dl)'
 
     gui(Fixed_Image=em)
@@ -201,8 +200,8 @@ def test_split_em_segmentation_adds_layer_and_passes_parameters(qtbot, viewer, p
     assert isinstance(viewer.layers['EM_segmentation'], Labels)
     (kwargs,) = pipeline.calls['run_fixed_segmentation']
     assert kwargs['Fixed_Image'] is em
-    assert kwargs['em_seg_axis'] is True
     assert kwargs['em_segmentation_backend'] == 'MitoNet (empanada-dl)'
+    assert set(kwargs) == {'Fixed_Image', 'em_segmentation_backend'}
 
 
 def test_split_fm_segmentation_adds_layer_and_passes_parameters(qtbot, viewer, pipeline, images):
@@ -513,15 +512,13 @@ def test_register_loads_parameters_from_json(qtbot, viewer, pipeline, images, tm
     assert pipeline.calls['run_moving_segmentation'][0]['log_sigma'] == 7.0
 
 
-@pytest.mark.xfail(strict=True, reason='#48: three-axis option shown for Segment-Flow, where it does nothing')
 @pytest.mark.parametrize('factory', [make_run_registration, fixed_segmentation_widget],
                          ids=['run_registration', 'split_em_segmentation'])
-def test_three_axis_option_unavailable_with_segment_flow(qtbot, factory):
+def test_three_axis_option_removed(qtbot, factory):
+    # #48: Prediction Across Three Axis was removed rather than hidden.
     gui = factory()
-    gui.em_segmentation_backend.value = 'MitoNet (empanada-dl)'
-    gui.em_segmentation_backend.value = 'MitoNet (Segment-Flow)'
 
-    assert gui.em_seg_axis.native.isHidden() or not gui.em_seg_axis.enabled
+    assert 'em_seg_axis' not in [w.name for w in gui]
 
 
 @pytest.mark.xfail(strict=True, reason='#49: Voxel Size sits under Point Cloud Registration')

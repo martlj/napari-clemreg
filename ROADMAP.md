@@ -9,7 +9,6 @@ See [CHANGELOG.md](CHANGELOG.md) for what's already landed.
 Each is pinned by a strict expected-failure test (in `test_widget_behaviour.py` or `test_pipeline_baseline.py`). Phase 1 of the package split (#58) fixes #47 by design.
 
 - **Save parameters crashes Register, and Parameters from JSON does nothing** ([#47](https://github.com/martlj/napari-clemreg/issues/47)).
-- **Prediction Across Three Axis is shown with Segment-Flow, where it does nothing** ([#48](https://github.com/martlj/napari-clemreg/issues/48)).
 - **Voxel Size sits in the wrong section** ([#49](https://github.com/martlj/napari-clemreg/issues/49)).
 - **Registration direction EM → FM always crashes** ([#68](https://github.com/martlj/napari-clemreg/issues/68)), in every release so far. Fixing it needs a decision on what EM → FM output should look like.
 - **README screenshots are out of date** ([#51](https://github.com/martlj/napari-clemreg/issues/51)).
@@ -54,11 +53,11 @@ Issues waiting on a decision are labelled [`needs-decision`](https://github.com/
 - **2D registration** ([#79](https://github.com/martlj/napari-clemreg/issues/79)). A single EM section with a single FM plane, including multichannel FM. Today every step assumes (z, y, x): the FM filter and TPS warp hardcode three axes, segmentation thresholds each z slice, sampling runs Canny per slice and builds open3d 3D clouds, and resampling, warp matrices and output shapes are all 3D. A 2D pair should run through the same widgets and core API, with transforms limited to the plane: rigid is a rotation about z plus translation (and scale), affine is 2×3, and BCPD deforms only within the plane. Plan:
   - **Dimensionality is explicit, not guessed from `ndim`.** The reader squeezes size-1 axes, so a (c, y, x) FM image looks like a (z, y, x) stack. Keep bioio's dimension names in layer metadata and decide 2D or 3D from those, with a widget override when the metadata is missing. `PixelSize` allows no `z` for 2D.
   - **Design the phase 1 types (#58) to cover 2D**, so this doesn't break the API later: `Transform` has an `ndim` and holds a 3×3 or 4×4 homogeneous matrix (or 2D or 3D control points), and `Result` and the MoBIE exporter (#6) take it from there.
-  - **Segmentation:** use a 2D difference of Gaussians (`_diff_of_gauss_2d` already exists), threshold the whole image rather than each row, and let `MaskRoi` have no z range. MitoNet is a 2D model, so both EM backends should accept one section; three-axis prediction doesn't apply.
+  - **Segmentation:** use a 2D difference of Gaussians (`_diff_of_gauss_2d` already exists), threshold the whole image rather than each row, and let `MaskRoi` have no z range. MitoNet is a 2D model, so both EM backends should accept one section.
   - **Sampling:** run Canny on the image directly. Pad clouds with z = 0 for open3d's downsampling and outlier removal, then drop the column, or replace those with numpy/scipy as part of #75.
   - **Registration:** register 2D clouds natively instead of as flat 3D clouds, which can rotate out of the plane. Checked against probreg: BCPD and affine CPD work on (N, 2) points (affine needs 2×2 initial parameters passed in), but rigid CPD crashes in 2D because its reflection fix hardcodes three dimensions. Options are an upstream fix, a small local 2D rigid step, or embedding in 3D and projecting the result back onto an in-plane rotation.
   - **Warping:** 3×3 matrices through `ndimage.affine_transform`, a 2D version of `_rescale_affine_matrix`, and a TPS warp written for any number of dimensions. The working grid becomes the EM xy pixel size, since there's no EM z pixel size to use.
-  - **Widgets:** hide the z range, z pixel sizes and three-axis prediction for 2D inputs, and show 2D points and outputs.
+  - **Widgets:** hide the z range and z pixel sizes for 2D inputs, and show 2D points and outputs.
   - **Tests:** synthetic 2D pairs with a known rotation, translation and shear that each algorithm must recover, plus a 2D slice of the sample data as a smoke test. The 3D output baseline must stay unchanged.
   - **Later:** automatic initial orientation (#73) in 2D has 8 candidates (4 rotations, with and without a flip), not 24. Registering a 2D EM section to a 3D FM stack (slice-to-volume) is a separate problem and out of scope; until then, mixed 2D and 3D inputs should fail with a clear error.
 

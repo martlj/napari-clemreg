@@ -8,7 +8,7 @@ This changelog covers the modernisation fork's own work only (starting from the 
 
 ## [Unreleased]
 
-Merged into `modernisation` since 0.5.0, not yet released. Proposed as **0.6.0**, a minor bump: it adds features (per-step buttons, `bioio` metadata) and changes the default warped-LM output resolution.
+Merged into `modernisation` since 0.5.0, not yet released. Proposed as **0.6.0**, a minor bump: it adds features (per-step buttons, `bioio` metadata), changes the default warped-LM output resolution, and removes a widget option (breaking, which is a minor bump while pre-1.0).
 
 ### Added
 - The TIFF reader now uses `bioio` to read pixel sizes, instead of hand-parsing ImageJ-specific TIFF tags, so pixel sizes are picked up from TIFFs that weren't written by ImageJ ([#37](https://github.com/martlj/napari-clemreg/issues/37), [PR #38](https://github.com/martlj/napari-clemreg/pull/38)).
@@ -18,6 +18,9 @@ Merged into `modernisation` since 0.5.0, not yet released. Proposed as **0.6.0**
 ### Changed
 - Warped LM (moving image) output now defaults to LM's own native pixel resolution instead of being forced onto EM's (much finer) pixel grid, placed correctly via the layer's `scale` rather than matching pixel counts. An "EM pixel grid (legacy)" option keeps the old behaviour. For Rigid/Affine CPD, the registration matrix is rescaled so the warp runs in a single interpolation pass directly from raw data ([#33](https://github.com/martlj/napari-clemreg/issues/33), [PR #34](https://github.com/martlj/napari-clemreg/pull/34)).
 - README: the install instructions now use the extras (`pip install -e ".[segment-flow]" pyqt6`) instead of a hand-written dependency list, a new section explains the current state of EM segmentation (Segment-Flow by default, `empanada-dl` blocked on Python 3.11), and the Run Registration parameter list matches the current widget ([PR #52](https://github.com/martlj/napari-clemreg/pull/52)).
+
+### Removed
+- **Breaking:** the **Prediction Across Three Axis** checkbox is removed from Run Registration and the split EM Segmentation widget. It only ever worked with the `MitoNet (empanada-dl)` backend and did nothing with the default Segment-Flow backend. More powerful segmentation options are available in other plugins. The core's `segment_em` no longer takes `three_axis` ([#48](https://github.com/martlj/napari-clemreg/issues/48), [PR #PRNUM](https://github.com/martlj/napari-clemreg/pull/PRNUM)).
 
 ### Fixed
 - Pixel sizes read from ImageJ-style metadata are parsed as numbers (decimals or fractions) instead of being evaluated as Python expressions; values that don't parse fall back to 1, as missing metadata does ([PR #72](https://github.com/martlj/napari-clemreg/pull/72)).

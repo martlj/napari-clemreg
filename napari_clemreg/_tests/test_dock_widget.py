@@ -107,8 +107,8 @@ def test_advanced_fields_grouped_into_collapsed_sections(qapp):
 
     # Field values must still be readable/writable via the normal
     # magicgui API after being visually moved into a QCollapsible.
-    widget.em_seg_axis.value = True
-    assert widget.em_seg_axis.value is True
+    widget.em_segmentation_backend.value = 'MitoNet (empanada-dl)'
+    assert widget.em_segmentation_backend.value == 'MitoNet (empanada-dl)'
     widget.registration_voxel_size.value = 42
     assert widget.registration_voxel_size.value == 42
 

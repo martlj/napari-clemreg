@@ -46,7 +46,7 @@ So these four keep their names and their layer-based signatures, and become the 
 from clemreg import PixelSize, Params, Result
 
 segment_fm(volume, sigma, threshold, size_filter=None, roi=None) -> np.ndarray      # labels
-segment_em(volume, backend="segment-flow", three_axis=False) -> np.ndarray         # labels
+segment_em(volume, backend="segment-flow") -> np.ndarray                           # labels
 sample_point_cloud(labels, pixel_size, every_k, voxel_size, sigma) -> np.ndarray    # (N, 3)
 register_point_clouds(moving, fixed, algorithm, max_iterations,
                       progress=None) -> Transform
@@ -145,3 +145,4 @@ Each decision is **Proposed** until confirmed in the phase 0 sub-issue (#57). D1
 | D7 | Keep the split widgets? | retire them in favour of Run Registration's step buttons; keep them | Out of scope for the split. They share the adapters either way (#35). | Open |
 | D8 | Widget framework | keep magicgui; rewrite the widgets in raw Qt (as AIoD's plugin does) | Out of scope for the split. The adapters don't depend on either, so this can be decided later (see ROADMAP.md). | Open |
 | D9 | Where point cloud sampling lives (#75) | (a) `clemreg.sampling` in the core, with the core's heavy dependencies (open3d, probreg) moved to an extra so the base install is light; (b) a small separate distribution the core depends on | Undecided. Either way, the samplers need only numpy, scipy and scikit-image, and the default edge method must keep the output baseline unchanged. | Open |
+| D10 | Three-axis EM prediction (#48) | hide it unless `empanada-dl` is selected; pass it through to Segment-Flow; remove it | Removed: `segment_em` has no `three_axis` parameter, and neither widget shows the option. The end-to-end pipeline doesn't need it, and more powerful segmentation options are available in other plugins. `empanada_segmentation(axis_prediction=...)` stays, because the published batch notebook calls it. | Accepted, 2026-09-24 |

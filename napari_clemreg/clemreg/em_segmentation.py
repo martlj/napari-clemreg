@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 BACKENDS = ('segment-flow', 'empanada')
 
 
-def segment_em(volume: np.ndarray, backend: str = 'segment-flow', three_axis: bool = False) -> np.ndarray:
+def segment_em(volume: np.ndarray, backend: str = 'segment-flow') -> np.ndarray:
     """Segment mitochondria in an EM volume with MitoNet.
 
     Parameters
@@ -26,9 +26,6 @@ def segment_em(volume: np.ndarray, backend: str = 'segment-flow', three_axis: bo
         The EM volume, (z, y, x).
     backend : {'segment-flow', 'empanada'}
         How to run MitoNet.
-    three_axis : bool
-        Predict along all three axes and combine. Only the 'empanada'
-        backend uses this (#48).
 
     Returns
     -------
@@ -52,7 +49,7 @@ def segment_em(volume: np.ndarray, backend: str = 'segment-flow', three_axis: bo
     elif backend == 'empanada':
         from .empanada_segmentation import empanada_segmentation
 
-        seg_volume = empanada_segmentation(input=volume, axis_prediction=three_axis)
+        seg_volume = empanada_segmentation(input=volume, axis_prediction=False)
     else:
         raise ClemregError(f'Unknown EM segmentation backend {backend!r}; expected one of {BACKENDS}')
 
