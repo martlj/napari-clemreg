@@ -34,6 +34,13 @@ From the original modernisation plan (`docs/napari-clemreg-modernisation-plan.md
 
 ## Newer ideas (from live testing, not in the original plan)
 
+- **Selectable point cloud sampling methods** ([#75](https://github.com/martlj/napari-clemreg/issues/75)). Today points come only from the outside edge of each mask (2D Canny per z-slice). The current method stays the default, with unchanged results. Additions to investigate:
+  - distance-map weighted sampling, with a tunable weight so points can come from near the edge, near object centres, or anywhere, using physical pixel sizes and per-object normalised distance
+  - skeleton sampling, optionally only at branch points or end points, which is useful for filament-like structures in other projects
+  - object centroids, as a baseline
+
+  Package the samplers so other projects can import them with only numpy, scipy and scikit-image, i.e. without open3d or the registration stack. Where they live is open decision D9 in the [package split design](docs/design/package-split.md#decisions-log).
+
 - **Automatic initial orientation for point cloud registration** ([#73](https://github.com/martlj/napari-clemreg/issues/73)). Registration works much better when the clouds start within about 90° of the right orientation, and today users pick the nearest orthogonal orientation by hand. To investigate:
   - running the registration from several starting orientations (e.g. the 24 axis-aligned rotations, on downsampled clouds) and keeping the best by a metric such as inlier fraction or Chamfer distance
   - handling a z flip between EM and FM, as a user setting, as extra candidates in the multi-start, or by a heuristic checked against typical data
