@@ -20,7 +20,7 @@ Merged into `modernisation` since 0.5.0, not yet released. Proposed as **0.6.0**
 - README: the install instructions now use the extras (`pip install -e ".[segment-flow]" pyqt6`) instead of a hand-written dependency list, a new section explains the current state of EM segmentation (Segment-Flow by default, `empanada-dl` blocked on Python 3.11), and the Run Registration parameter list matches the current widget ([PR #52](https://github.com/martlj/napari-clemreg/pull/52)).
 
 ### Removed
-- **Breaking:** the **Prediction Across Three Axis** checkbox is removed from Run Registration and the split EM Segmentation widget. It only ever worked with the `MitoNet (empanada-dl)` backend and did nothing with the default Segment-Flow backend. More powerful segmentation options are available in other plugins. The core's `segment_em` no longer takes `three_axis` ([#48](https://github.com/martlj/napari-clemreg/issues/48), [PR #PRNUM](https://github.com/martlj/napari-clemreg/pull/PRNUM)).
+- **Breaking:** the **Prediction Across Three Axis** checkbox is removed from Run Registration and the split EM Segmentation widget. It only ever worked with the `MitoNet (empanada-dl)` backend and did nothing with the default Segment-Flow backend. More powerful segmentation options are available in other plugins. The core's `segment_em` no longer takes `three_axis` ([#48](https://github.com/martlj/napari-clemreg/issues/48), [PR #80](https://github.com/martlj/napari-clemreg/pull/80)).
 
 ### Fixed
 - Pixel sizes read from ImageJ-style metadata are parsed as numbers (decimals or fractions) instead of being evaluated as Python expressions; values that don't parse fall back to 1, as missing metadata does ([PR #72](https://github.com/martlj/napari-clemreg/pull/72)).
