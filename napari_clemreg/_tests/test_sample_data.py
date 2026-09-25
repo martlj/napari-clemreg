@@ -7,6 +7,7 @@ actually downloads/caches the real ~275MB + ~337MB files, so it's
 marked slow and skipped unless `pytest --run-slow` is passed.
 """
 import re
+from pathlib import Path
 
 import numpy as np
 import pytest
@@ -49,7 +50,13 @@ def test_make_sample_data_returns_expected_layers():
     em_data, em_kwargs = result[0]
     assert em_data.shape == (106, 1750, 1484)
     assert em_data.dtype.name == "uint8"
+    # The EM layer is the whole file, so plugins that work on files can find it
+    # (aiod_napari reads metadata["path"] when a layer has no source path).
+    assert Path(em_kwargs["metadata"]["path"]).name == "em_20nm_z_40_145.tif"
+    assert Path(em_kwargs["metadata"]["path"]).is_file()
 
     for data, kwargs in result[1:]:
         assert data.ndim == 3
         assert "metadata" in kwargs
+        # FM layers are channel slices of a hyperstack: its path would be wrong.
+        assert "path" not in kwargs["metadata"]

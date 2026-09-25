@@ -29,7 +29,8 @@ def make_sample_data():
     # https://napari.org/stable/api/napari.Viewer.html#napari.Viewer.add_image
 
     print('Loading EM...')
-    em = tifffile.imread(POOCH.fetch('em_20nm_z_40_145.tif', progressbar=True))
+    em_path = POOCH.fetch('em_20nm_z_40_145.tif', progressbar=True)
+    em = tifffile.imread(em_path)
     print('Loading FM...')
     fm = tifffile.imread(POOCH.fetch('EM04468_2_63x_pos8T_LM_raw.tif', progressbar=True))
 
@@ -41,9 +42,16 @@ def make_sample_data():
     fm_metadata = {'ImageDescription': 'ImageJ=1.53t\nimages=112\nchannels=4\nslices=28\nhyperstack=true\nmode=grayscale\nunit=micron\nspacing=0.13\nloop=false\nmin=0.0\nmax=65535.0\n',
                    'XResolution': 28.349506,
                    'YResolution': 28.349506}
+    # 'path': the EM layer is the whole file, unmodified, so record where it is.
+    # Plugins that run on files rather than layer data (aiod_napari, which
+    # sends images to Segment-Flow) find it here, as they would for a layer
+    # opened from disk (its sample loader sets the same key for this file).
+    # The FM layers are single channels sliced out of a 4-channel hyperstack,
+    # so the file's path would be wrong for them; they get none.
     em_metadata = {'ImageDescription': '\nunit=micron\nspacing=0.02\n',
                    'XResolution': 50,
-                   'YResolution': 50}
+                   'YResolution': 50,
+                   'path': em_path}
 
     return [(em, {'name': 'EM', 'metadata': em_metadata}),
             (fm[7:, 0], {'blending': 'additive', 'colormap': 'green', 'name': 'FM_TGN46', 'metadata': fm_metadata}),
