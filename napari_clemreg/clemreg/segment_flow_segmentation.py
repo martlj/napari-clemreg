@@ -40,6 +40,36 @@ SEGMENT_FLOW_REVISION = "0.2.1"
 SEGMENT_FLOW_REPO = "FrancisCrickInstitute/Segment-Flow"
 
 
+def _segment_flow_source() -> list[str]:
+    """The pipeline argument(s) for ``nextflow run``.
+
+    Honours AIOD_NXF_REPO the same way aiod_napari does: when set, it names
+    a local Segment-Flow checkout, which is run as-is (no ``-r``: a local
+    checkout is already at whatever revision it's checked out to). This
+    lets a packaged install (e.g. a container) supply a pinned Segment-Flow
+    with site-specific profiles, and run without fetching from GitHub.
+    """
+    import os
+
+    if nxf_repo := os.environ.get("AIOD_NXF_REPO"):
+        repo = Path(nxf_repo)
+        if not repo.is_dir():
+            raise SegmentFlowNotAvailable(
+                f"AIOD_NXF_REPO was set to {repo}, which does not exist."
+            )
+        return [str(repo)]
+    return [SEGMENT_FLOW_REPO, "-r", SEGMENT_FLOW_REVISION]
+
+
+def _default_profile() -> str:
+    """Nextflow profile when the caller doesn't choose one: AIOD_NXF_PROFILE
+    if set (e.g. a GPU profile provided by a local AIOD_NXF_REPO checkout),
+    else "local"."""
+    import os
+
+    return os.environ.get("AIOD_NXF_PROFILE") or "local"
+
+
 class SegmentFlowNotAvailable(ClemregError):
     """Raised when Nextflow (or Conda) isn't available on PATH."""
 
@@ -218,7 +248,7 @@ def segment_flow_em_segmentation(
     volume: np.ndarray,
     model_type: str = "MitoNet v1",
     task: str = "mito",
-    profile: str = "local",
+    profile: str | None = None,
     root_dir: str | Path | None = None,
     conf_threshold: float = 0.3,
 ) -> np.ndarray:
@@ -236,8 +266,10 @@ def segment_flow_em_segmentation(
         AIoD registry task key for the chosen model_type (e.g. "mito" --
         again, taken from the registry manifest, not guessed; this does
         NOT match empanada_segmentation.py's own axis_prediction concept).
-    profile : str
-        Nextflow execution profile: "local", "crick", or "rosalind".
+    profile : str, optional
+        Nextflow execution profile: "local", "crick", or "rosalind" (or
+        any profile a local AIOD_NXF_REPO checkout defines). Defaults to
+        the AIOD_NXF_PROFILE environment variable, else "local".
     root_dir : str or Path, optional
         AIoD cache/output root (holds conda envs, model checkpoints, and
         results -- reused across calls so models aren't re-downloaded).
@@ -256,6 +288,9 @@ def segment_flow_em_segmentation(
         The segmentation mask, same shape as ``volume``.
     """
     _check_prerequisites()
+    source = _segment_flow_source()
+    if profile is None:
+        profile = _default_profile()
 
     # Match Segment-Flow's own default (nextflow.config:
     # root_dir = "${System.getProperty('user.home')}/.nextflow/aiod") so a
@@ -294,8 +329,7 @@ def segment_flow_em_segmentation(
         model_config_path = _build_model_config(model_type, task, conf_threshold, tmpdir)
 
         cmd = [
-            "nextflow", "run", SEGMENT_FLOW_REPO,
-            "-r", SEGMENT_FLOW_REVISION,
+            "nextflow", "run", *source,
             "-profile", profile,
             # No forced serialization here (see git history for an
             # executor.queueSize=1 attempt that was reverted): the real

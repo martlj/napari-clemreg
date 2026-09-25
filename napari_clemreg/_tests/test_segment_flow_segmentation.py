@@ -20,6 +20,8 @@ from napari_clemreg.clemreg.segment_flow_segmentation import (
     _build_model_config,
     _build_subprocess_env,
     _check_prerequisites,
+    _default_profile,
+    _segment_flow_source,
     segment_flow_em_segmentation,
 )
 
@@ -37,6 +39,29 @@ def test_segment_flow_revision_is_pinned_not_default_branch():
     # that disappear once pinned to the same revision aiod_napari uses.
     assert SEGMENT_FLOW_REVISION not in ("master", "main")
     assert SEGMENT_FLOW_REPO == "FrancisCrickInstitute/Segment-Flow"
+
+
+def test_segment_flow_source_defaults_to_pinned_github_release(monkeypatch):
+    monkeypatch.delenv("AIOD_NXF_REPO", raising=False)
+    assert _segment_flow_source() == [SEGMENT_FLOW_REPO, "-r", SEGMENT_FLOW_REVISION]
+
+
+def test_segment_flow_source_uses_local_checkout_without_revision(monkeypatch, tmp_path):
+    monkeypatch.setenv("AIOD_NXF_REPO", str(tmp_path))
+    assert _segment_flow_source() == [str(tmp_path)]
+
+
+def test_segment_flow_source_rejects_missing_local_checkout(monkeypatch, tmp_path):
+    monkeypatch.setenv("AIOD_NXF_REPO", str(tmp_path / "missing"))
+    with pytest.raises(SegmentFlowNotAvailable, match="AIOD_NXF_REPO"):
+        _segment_flow_source()
+
+
+def test_default_profile_honours_env(monkeypatch):
+    monkeypatch.delenv("AIOD_NXF_PROFILE", raising=False)
+    assert _default_profile() == "local"
+    monkeypatch.setenv("AIOD_NXF_PROFILE", "berta")
+    assert _default_profile() == "berta"
 
 
 def test_check_prerequisites_raises_clearly_when_nextflow_missing():
