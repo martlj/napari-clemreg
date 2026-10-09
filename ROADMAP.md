@@ -12,6 +12,8 @@ Each is pinned by a strict expected-failure test (in `test_widget_behaviour.py` 
 - **Voxel Size sits in the wrong section** ([#49](https://github.com/martlj/napari-clemreg/issues/49)).
 - **Registration direction EM → FM always crashes** ([#68](https://github.com/martlj/napari-clemreg/issues/68)), in every release so far. Fixing it needs a decision on what EM → FM output should look like.
 - **README screenshots are out of date** ([#51](https://github.com/martlj/napari-clemreg/issues/51)).
+- **Register reports a failed segmentation twice** ([#85](https://github.com/martlj/napari-clemreg/issues/85)): its segmentation workers connect `errored` after creation, so superqt's re-raise also fires.
+- **Importing the plugin freezes napari for about 3.5 s, even to open a TIFF** ([#86](https://github.com/martlj/napari-clemreg/issues/86)): `__init__.py` imports every widget, which loads open3d and probreg. `run_registration.py` also edits `sys.path` on import.
 
 ## Planned
 
@@ -20,12 +22,15 @@ From the original modernisation plan (`docs/napari-clemreg-modernisation-plan.md
 - **Repository & release strategy** ([#1](https://github.com/martlj/napari-clemreg/issues/1), plan §7) — when/how `modernisation` goes back into `main` (it's the fork's default branch meanwhile), actual version tagging, PyPI ownership transfer to the Crick org. See the "Status note" at the top of [CHANGELOG.md](CHANGELOG.md) — no version bump has actually happened yet despite several release-worthy batches of work (proposed numbering in the CHANGELOG).
 - **`empanada-dl` dependency blocker** ([#5](https://github.com/martlj/napari-clemreg/issues/5)) — still can't install on Python 3.11 (`numpy==1.22` pin, no wheels). Segment-Flow (0.5.0) makes this non-blocking for EM segmentation generally, but the extra itself is still broken for anyone who specifically wants the in-process bundled backend.
 - **MoBIE project output option** ([#6](https://github.com/martlj/napari-clemreg/issues/6), plan §3) — export registered/warped volumes as a MoBIE project.
+- **napari hub and PyPI listing** ([#87](https://github.com/martlj/napari-clemreg/issues/87)): absolute URLs for the README images, which are broken on PyPI and the hub today; delete the unused `.napari/` folder; add a manifest `display_name` and `categories`.
+- **Cancelling Segment-Flow runs and cleaning up closed widgets** ([#88](https://github.com/martlj/napari-clemreg/issues/88), needs a decision on a Cancel button): `quit()` can't stop the Nextflow subprocess, and nothing is released when a dock is closed.
 - **Package split: `clemreg` core + `napari-clemreg` widgets** ([#7](https://github.com/martlj/napari-clemreg/issues/7), [milestone *clemreg 0.1.0*](https://github.com/martlj/napari-clemreg/milestone/1)): design in [docs/design/package-split.md](docs/design/package-split.md), with phases #58–#61 (decisions agreed in #57). MoBIE export (#6) is written directly in the core and can start once phase 1 (#58) merges. Get the upstream owner's agreement to the new layout before phase 2 (#59).
 
 ## Testing follow-ups
 
 - **Run the real Segment-Flow test by hand before each release.** It skips on CI, because the runners have no Nextflow.
 - **A manual release checklist** for what tests can't judge: overlay correctness, the readability of the auto-set highlight, dock sizing, and light and dark themes.
+- **CI and packaging checks from the napari guidelines** ([#89](https://github.com/martlj/napari-clemreg/issues/89)): `npe2 validate --imports` in CI, an `[all]` extra, and a test that closes each dock.
 
 ## Open decisions
 
