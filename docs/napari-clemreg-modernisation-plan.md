@@ -279,7 +279,7 @@ Recommendation: pursue transfer (1); fall back to fork (2) if transfer isn't agr
 
 ### 7.2 Monorepo, so no repo split needed
 
-Because the two packages live in one monorepo (§6.3), moving to the Crick org is a single repository operation — the `clemreg` / `napari-clemreg` split is a directory restructure inside it, not a second repo move. If separate repos are ever justified later, split with `git filter-repo` so each carries its relevant history.
+Because the two packages live in one monorepo (§6.3), moving to the Crick org is a single repository operation — the `clemreg` / `napari-clemreg` split is a directory restructure inside it, not a second repo move. If separate repos are ever justified later, split with `git filter-repo` so each carries its relevant history. When a separate core repository would be justified, and how the split's phases keep that move cheap, is now in decision D1 of the [package split design](design/package-split.md#decisions-log) (revisited 2026-10-09).
 
 ### 7.3 PyPI naming & ownership
 

@@ -152,4 +152,4 @@ A batch takes the highest level of any change in it. A fix to a feature added in
 4. Widget-level tests exist, so the stability promise can actually be checked in CI.
 5. The release is cut from the canonical upstream or Crick-org repo, not this fork ([#1](https://github.com/martlj/napari-clemreg/issues/1), plan §7.7), so the tag gets the Zenodo DOI and `CITATION.cff`.
 
-After the split, `clemreg` and `napari-clemreg` are versioned independently. Each reaches 1.0 on its own merits, with criterion 1 applied to that package's own API.
+After the split, `clemreg` and `napari-clemreg` are versioned independently. Each reaches 1.0 on its own merits, with criterion 1 applied to that package's own API. The plugin is tagged `vX.Y.Z` and the core `clemreg-vX.Y.Z`, and each has its own CHANGELOG (`CHANGELOG.md` and `packages/clemreg/CHANGELOG.md`). See *Two packages in one repository* in the [package split design](docs/design/package-split.md).
