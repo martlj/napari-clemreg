@@ -38,6 +38,7 @@ Changes to tests, CI and project docs, with no effect on the installed package.
 - `modernisation` is now the fork's default branch, so "Fixes #N" closes issues on merge and scheduled workflows run ([PR #56](https://github.com/martlj/napari-clemreg/pull/56)).
 - Package split design in [docs/design/package-split.md](docs/design/package-split.md), replacing §6 of the plan, with phases tracked in #57–#61 ([PR #62](https://github.com/martlj/napari-clemreg/pull/62)). Decisions D1–D6 accepted, with D1 and D4 amended and D5 reversed ([PR #67](https://github.com/martlj/napari-clemreg/pull/67)).
 - Versioning rules (patch, minor, major, and when to declare 1.0.0), with this changelog's batches renumbered to match ([PR #44](https://github.com/martlj/napari-clemreg/pull/44), [PR #45](https://github.com/martlj/napari-clemreg/pull/45), [PR #46](https://github.com/martlj/napari-clemreg/pull/46)).
+- A `napari-dev` Claude Code skill in `.claude/skills/napari-dev/`, with napari's plugin guidelines (dependencies, the npe2 manifest, widget clean-up, threads, error messages, tests and releases) and a reference checked against napari 0.9.2. It's used when writing or reviewing plugin code ([PR #84](https://github.com/martlj/napari-clemreg/pull/84)).
 
 ## [0.5.0] — AI-on-Demand Segment-Flow integration (2026-09-22 — 2026-09-23)
 
