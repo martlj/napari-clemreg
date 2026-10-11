@@ -79,7 +79,8 @@ sample01.clemreg/                       # project root = RO-Crate root
     params.json                         # Params.to_json()
     mask_roi.json                       # MaskRoi, if used
     transform.json                      # Transform, CLEM-Reg's own exact form
-    bigwarp_landmarks.json              # BCPD only: for MoBIE's thinPlateSpline and for BigWarp
+    bigwarp_landmarks.json              # landmarks for MoBIE's thinPlateSpline and for BigWarp
+    bigwarp_project.json                # opens FM, EM and the landmarks in BigWarp
     point_clouds/{moving,fixed,transformed}.parquet
     qc/                                 # overlay images and registration metrics
 ```
@@ -129,9 +130,40 @@ Points are in physical units, in XYZ order. For CLEM-Reg, the moving points are 
 **What this means for CLEM-Reg:**
 
 - **BCPD results don't need resampling for MoBIE.** Write `clemreg/bigwarp_landmarks.json` and reference it from a `thinPlateSpline` source transform. If phase 0 finds this too slow (every rendered voxel is evaluated against every landmark), either reduce the landmarks or fall back to a `displacementField` written from the inverse warp CLEM-Reg already computes. The resampled `fm_registered` image stays as the last resort, and as an option for people using older MoBIE releases (D10).
-- **Correcting a registration by hand.** The same landmarks file opens in BigWarp, so a user can load the FM and EM images and adjust the landmarks there. Importing corrected landmarks back into CLEM-Reg as a `Transform` would be a natural follow-up.
+- **Correcting a registration by hand.** The same landmarks file opens in BigWarp. See *Refining a registration by hand in BigWarp* for what's confirmed and what still needs checking.
 - **Standards come first.** The RFC-5 `displacements` field in the scene stays the representation that follows the standard. The MoBIE and BigWarp forms are additional copies for viewers that don't read RFC-5 yet, all generated from the same `Transform` and covered by the consistency test.
 - **BigWarp's own NGFF export** predates the final RFC-5. Until BigWarp is updated for 0.6, don't rely on BigWarp reading CLEM-Reg's RFC-5 fields, or on CLEM-Reg reading BigWarp's.
+
+## Refining a registration by hand in BigWarp
+
+The aim is that a user can open a CLEM-Reg result in [BigWarp](https://imagej.github.io/plugins/bigwarp), correct it by moving or adding landmarks, and bring the corrected transform back into the project. Parts of this are confirmed from BigWarp's source code (checked 2026-10-11, latest commit 2026-06-02). The rest hasn't been tried yet.
+
+**Confirmed from the source code:**
+
+- **Landmark import.** BigWarp's landmark table reads CSV or JSON, chosen by file extension (`LandmarkTableModel.load`). The JSON form is `{"landmarks": {...}}`, the same object MoBIE's `thinPlateSpline` reads, so one file can serve both. Each landmark has an `active` flag, which BigWarp uses to switch landmarks off without deleting them.
+- **Project files.** A BigWarp settings ("project") file lists the images under `Sources`, each with a `uri`, a `name` and `isMoving`. It holds the transform under `Transform`, with a `type` and the `landmarks`, along with display settings. So CLEM-Reg can write one file that opens the FM image as moving, the EM image as fixed, and the landmarks with the right transform type, in a single step.
+- **Transform types.** BigWarp fits *Thin Plate Spline*, *Affine*, *Similarity*, *Rotation* or *Translation* from the landmarks. It can also limit a thin-plate spline's effect to a region with a mask, which suits local corrections.
+- **Same spline.** BigWarp's thin-plate spline uses the r² log r kernel, the same as CLEM-Reg's (`_U` in `warp_image_volume.py`).
+- **Coordinates stay in the full image.** The Mask ROI sets voxels outside the region to zero without cropping (`mask_roi.py`), so FM point coordinates are in the frame of the whole FM image, not of a crop.
+
+**What CLEM-Reg would write** (in `clemreg/`, from the same `Transform` as everything else):
+
+- `bigwarp_landmarks.json`: landmarks in µm, XYZ order. FM points are the moving points, and the same points after registration, in EM space, are the fixed points.
+- `bigwarp_project.json`: a BigWarp project referencing the project's FM image (moving, one source per channel) and EM image (fixed), the landmarks, and the transform type that matches the algorithm.
+- **BCPD:** the thin-plate spline built from the control points. CLEM-Reg uses *every* point of both clouds as a control point, and on the sample data that's more than 1,000 per cloud (`test_gui_end_to_end.py` checks for more than 1,000). That's too many to edit by hand (see the checks below). So the editable file holds a well-spread subset, for example 100–300 points chosen by farthest-point sampling. The full set stays in `transform.json` for exact reproduction, and the QC output reports how far the subset's spline differs from the full one, as the mean and maximum displacement difference over the FM volume (D12).
+- **Rigid and Affine CPD:** these have no landmarks of their own. CLEM-Reg generates them by applying the matrix to well-spread FM points, such as the corners of the FM volume plus a subset of the point cloud. Because the pairs are exact, BigWarp's fit recovers the same matrix. The transform type is *Affine* for Affine CPD. For Rigid CPD it's *Similarity*, since probreg's rigid CPD (`cpd.registration_cpd(..., tf_type_name='rigid')` with default options) also fits a uniform scale. The user can then switch to *Thin Plate Spline* to add local corrections on top.
+
+**Bringing the correction back:** a `Transform.from_bigwarp()` reads the landmarks file (JSON or CSV), keeps only active landmarks, converts XYZ µm to CLEM-Reg's ZYX, and builds either a thin-plate spline or an affine fitted from the landmarks, depending on the transform type. The project then regenerates everything that depends on the transform (RFC-5 transforms, MoBIE views, the resampled image if one is wanted, and QC). The original landmarks are kept alongside the refined ones. The project's RO-Crate records the correction as its own step, carried out by a person using BigWarp (with its version), so the provenance shows that the result isn't purely automatic.
+
+**Checks still to do** (added to phase 0, [#93](https://github.com/martlj/napari-clemreg/issues/93)):
+
+1. **Coordinates line up.** Open a CLEM-Reg result in BigWarp and check the overlay matches CLEM-Reg's own. BigWarp places images by their calibration, so the landmarks need the same units and the same origin. ImgLib2 puts pixel centres at integer coordinates, which needs the same origin test as in *Transforms*. The EM sample TIFF has no pixel size (#42), so BigWarp would treat its pixels as 1 unit. Use the project's OME-Zarr images, or TIFFs with the calibration set.
+2. **Opening images from a project file.** BigWarp opens TIFF paths from a project's `uri` (its test files do this). Check N5, Zarr and OME-Zarr 0.5 and 0.6 URIs, including S3, and that each FM channel appears as its own moving source.
+3. **Responsiveness.** Time BigWarp with all of BCPD's landmarks and with subsets of 100, 300 and 1,000. Each edit solves the spline again (at a cost that grows roughly with the cube of the number of landmarks), and the landmark table is meant for tens to hundreds of hand-placed points. This sets the default subset size (D12).
+4. **Agreement.** Compare BigWarp's warp with CLEM-Reg's resampled BCPD output, using both the full set and the subset.
+5. **Affine recovery.** Check that BigWarp's *Affine* and *Similarity* fits reproduce CLEM-Reg's matrices from the generated pairs, and confirm whether probreg's rigid CPD fits a scale with the options CLEM-Reg uses.
+6. **Import format.** Check whether BigWarp's *Import landmarks* accepts the `{"landmarks": ...}` JSON on its own, or only CSV and full project files. Check whether *Load project* accepts a file that has only `Sources` and `Transform`, without the display settings.
+7. **Round trip.** Edit landmarks in BigWarp, export them, import them with `Transform.from_bigwarp()`, and check the result matches BigWarp's own warp of the same landmarks.
 
 ## FAIR metadata (RO-Crate)
 
@@ -177,12 +209,12 @@ Points are in physical units, in XYZ order. For CLEM-Reg, the moving points are 
 
 Each phase is one PR (or a few), leaves the tests passing, and keeps the pipeline output baseline (`test_pipeline_baseline.py`) unchanged.
 
-0. **Compatibility check**, nothing merged except possibly a script. Write a small sharded scene with ngff-zarr, in 0.6 (affine plus displacements) and in 0.5. Open it in MoBIE/Fiji, napari-ome-zarr, bioio-ome-zarr and Neuroglancer. Test MoBIE with nested label groups, multichannel sources and linked external stores. Run Segment-Flow on an `.ome.zarr` input. Time sharded writes of a large dask array. Find the first Fiji update-site release of MoBIE with `thinPlateSpline` and `displacementField`. Open a BCPD result in MoBIE through `thinPlateSpline` and through `displacementField`, compare both with CLEM-Reg's resampled output and time the rendering. Open the landmarks file in BigWarp. The results settle D1, D5, D6, D8, D10 and D11.
+0. **Compatibility check**, nothing merged except possibly a script. Write a small sharded scene with ngff-zarr, in 0.6 (affine plus displacements) and in 0.5. Open it in MoBIE/Fiji, napari-ome-zarr, bioio-ome-zarr and Neuroglancer. Test MoBIE with nested label groups, multichannel sources and linked external stores. Run Segment-Flow on an `.ome.zarr` input. Time sharded writes of a large dask array. Find the first Fiji update-site release of MoBIE with `thinPlateSpline` and `displacementField`. Open a BCPD result in MoBIE through `thinPlateSpline` and through `displacementField`, compare both with CLEM-Reg's resampled output and time the rendering. Carry out the BigWarp checks in *Refining a registration by hand in BigWarp*. The results settle D1, D5, D6, D8, D10, D11 and D12.
 1. **Reading** (needs package split phase 1, #58): `clemreg.io.open_image` returning a `PixelSize` in µm, replacing `get_pixelsize`. The adapters read layer `scale` and `units`. Tests run on generated fixtures: TIFF, OME-TIFF, and OME-Zarr 0.4, 0.5 and 0.6. This also lets the plugin run on images opened by napari-ome-zarr.
 2. **Physical transforms**: the physical-units conversion, the RFC-5, MoBIE and napari serialisers, the consistency test, and the origin test. In the plugin, show the Rigid and Affine CPD results through the layer `affine`.
 3. **Import and project writer**: `clemreg.project` and `clemreg import`. Convert, or link, inputs into a sharded multiscale scene, with per-image crates and the required metadata.
 4. **Pipeline on projects**: segmentations as `labels`, Segment-Flow fed from the project, `MaskRoi`, params and point clouds saved, scene transforms written, chunked warping and the BCPD displacement field, and QC outputs.
-5. **MoBIE**: `project.json`, `dataset.json`, sources, views and tables generated from the scene, validated in CI (D4) and checked by hand in Fiji. BCPD results use `thinPlateSpline` or `displacementField` (D10), and a collection table is written if D11 says so. This replaces the `mobie_export.py` design in #6.
+5. **MoBIE**: `project.json`, `dataset.json`, sources, views and tables generated from the scene, validated in CI (D4) and checked by hand in Fiji. BCPD results use `thinPlateSpline` or `displacementField` (D10), and a collection table is written if D11 says so. The BigWarp landmarks and project files are written here too. This replaces the `mobie_export.py` design in #6.
 6. **Project RO-Crate**: the Process Run Crate, validation, and the link to nf-prov output for Nextflow runs (#91).
 7. **Plugin**: **Save project** (the #6 output-mode setting), metadata fields, and reopening a project. Decide on #40 if formats beyond those already handled are needed.
 8. **Sample data**: publish the sample project (#41, #42) and switch the slow tests to it.
@@ -190,6 +222,7 @@ Each phase is one PR (or a few), leaves the tests passing, and keeps the pipelin
 Phases 1 and 2 can start as soon as package split phase 1 merges. Phases 3 to 6 make up the headless path, and Nextflow (#91) needs phases 3 and 4.
 
 **Later:**
+- importing refined BigWarp landmarks back into a project (`Transform.from_bigwarp()`), with the correction recorded as its own step in the RO-Crate;
 - reading a pyramid level for segmentation and sampling (opt-in, because it changes results);
 - writing projects straight to S3;
 - RFC-4 orientation metadata;
@@ -223,3 +256,4 @@ Each decision is **Proposed** until confirmed in its phase's issue.
 | D9 | Images with no pixel size | refuse; assume 1; use a sample-data override | Refuse to import without explicit pixel sizes, and record the values the user gives as user-supplied. | Proposed |
 | D10 | BCPD in MoBIE | resampled `fm_registered` only; `thinPlateSpline` from BigWarp landmarks; MoBIE `displacementField` | `thinPlateSpline`, if phase 0 shows it matches CLEM-Reg's output and renders fast enough, with `displacementField` as the fallback. Keep writing `fm_registered` as an option for older MoBIE releases. | Proposed |
 | D11 | MoBIE output form | a MoBIE project; a collection table; both | A MoBIE project (a versioned spec, with views), plus a collection table with a transformation table if it costs little, since it opens directly in Fiji and suits Nextflow batch output. | Proposed |
+| D12 | Landmarks exported for editing in BigWarp | all of BCPD's control points; a well-spread subset; let the user choose | A subset chosen by farthest-point sampling, with a default size set by phase 0's timing and agreement checks. Report the difference from the full spline in QC, and keep the full set in `transform.json`. | Proposed |
