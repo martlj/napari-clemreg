@@ -1,5 +1,7 @@
 # napari plugin reference
 
+<!-- research-standards v1.1.0. Shared file: don't edit in a project. -->
+
 Checked against napari 0.9.2, npe2 0.9.0, superqt 0.8.2 and the plugin template on 2026-10-04. Source-code facts are given as `napari/<file>:<function>` in the installed package; re-check them when the napari version changes.
 
 | Topic | Source |

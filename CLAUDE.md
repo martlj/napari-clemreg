@@ -77,6 +77,10 @@ The full pipeline (EM segmentation → FM segmentation → point-cloud sampling 
 
 The original modernisation plan (testing foundation, Python 3.11, napari upgrade, MoBIE export, and the repo/PyPI/release strategy; its §6 on the split now points to the design doc) is in [docs/napari-clemreg-modernisation-plan.md](docs/napari-clemreg-modernisation-plan.md) — read it before starting work related to any of those areas.
 
+## Shared napari skill
+
+`.claude/skills/napari-dev/` (napari's plugin guidelines) is installed from the `napari` add-on of [research-standards](https://github.com/martlj/research-standards), with only the add-on and none of the rest of that kit (`core: false` in `.claude/research-standards.yml`). Don't edit it here: change it in research-standards, then update this copy with `python ../research-standards/install.py .` from a research-standards checkout, on a branch. Put anything specific to this repo in this file instead. research-standards is a private repository, so collaborators without access can use the skill but not update it.
+
 ## Packaging
 
 The root package (`napari-clemreg`, the napari plugin) is defined via `setup.cfg`/`setup.py` (no `pyproject.toml`). `python_requires = >=3.11` as of the #3 modernisation work, with most pins loosened to `>=` per the plan's §1.2 table. Heavy dependencies (`napari`, `open3d`, `probreg`) make installs slow.
