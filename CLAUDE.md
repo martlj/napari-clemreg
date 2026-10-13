@@ -79,7 +79,7 @@ The original modernisation plan (testing foundation, Python 3.11, napari upgrade
 
 ## Shared napari skill
 
-`.claude/skills/napari-dev/` (napari's plugin guidelines) is installed from the `napari` add-on of [research-standards](https://github.com/martlj/research-standards), with only the add-on and none of the rest of that kit (`core: false` in `.claude/research-standards.yml`). Don't edit it here: change it in research-standards, then update this copy with `python ../research-standards/install.py .` from a research-standards checkout, on a branch. Put anything specific to this repo in this file instead. research-standards is a private repository, so collaborators without access can use the skill but not update it.
+`.claude/skills/napari-dev/` holds napari's plugin guidelines as a Claude Code skill. The maintainer's master copy is a personal skill outside this repository; this committed copy is for collaborators, so keep it general and put anything specific to this repo in this file instead. When the guidelines change, copy the new version in on a branch.
 
 ## Packaging
 
