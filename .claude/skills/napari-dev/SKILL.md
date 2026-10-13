@@ -2,7 +2,6 @@
 name: napari-dev
 description: Use when writing, reviewing, packaging, testing or publishing a napari plugin — npe2 manifest (napari.yaml), widget, reader, writer or sample-data contributions, dock widgets and what happens when they close, thread_worker, notifications and errors, pyproject dependencies and extras, splitting a headless core from the plugin, napari hub, PyPI or conda-forge releases, or tests with make_napari_viewer.
 ---
-<!-- research-standards v1.1.0 -->
 
 # napari plugin development
 

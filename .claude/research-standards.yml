@@ -1,9 +1,0 @@
-# Which shared standards this project follows. Managed by install.py /
-# the update-standards skill. You may change 'profile', 'strict', 'core'
-# and 'addons' (then run the installer again).
-source: "https://github.com/martlj/research-standards"
-version: "1.1.0"
-profile: general   # general | analysis | website | course
-strict: false    # true = edited shared files fail the standards check
-core: false    # false = only the add-ons below are installed
-addons: napari    # extra shared files, e.g. napari
