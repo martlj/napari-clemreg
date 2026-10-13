@@ -4,6 +4,7 @@ from qtpy.QtWidgets import QApplication
 
 from napari_clemreg.clemreg.data_preprocessing import (
     get_pixelsize, return_isotropic_image_list, _zoom_values, resample_to_pixelsize,
+    _make_isotropic,
 )
 
 # Exact metadata dicts used by napari_clemreg/clemreg/sample_data.py, reused
@@ -130,3 +131,30 @@ def test_resample_to_pixelsize_is_identity_when_target_matches_working_grid():
     arr = np.random.default_rng(0).integers(0, 255, (12, 12, 12), dtype=np.uint8)
     result = resample_to_pixelsize(arr, working_pxlsz=5.0, target_pxlsz=(5.0, 5.0))
     assert result.shape == arr.shape
+
+
+# The FM sample's pixel sizes (nm): 130 z, 35 xy, resampled onto a 20 nm
+# working grid. A ramp holding each voxel's physical z position shows
+# where every output voxel samples from, so a wrong scale shows up as a
+# value that drifts away from the output voxel's own position.
+@pytest.mark.xfail(strict=True, reason='#98: ndimage.zoom stretches z by (n_out - 1) / (n_in - 1)')
+@pytest.mark.parametrize('n_slices', [7, 28])
+def test_make_isotropic_keeps_the_requested_z_scale(n_slices):
+    ramp = np.broadcast_to(np.arange(n_slices, dtype=float)[:, None, None] * 130, (n_slices, 2, 2))
+
+    result = _make_isotropic(ramp, pxlsz_lm=(130, 35), pxlsz_em=(20, 20), order=1)
+
+    assert result.shape[0] == round(n_slices * 6.5)
+    # Beyond the last input slice's centre the value is clamped, not scaled.
+    inside = np.arange(result.shape[0]) * 20 <= (n_slices - 1) * 130
+    np.testing.assert_allclose(result[inside, 0, 0], np.arange(result.shape[0])[inside] * 20, atol=1e-6)
+
+
+@pytest.mark.xfail(strict=True, reason='#98: ndimage.zoom stretches z by (n_out - 1) / (n_in - 1)')
+def test_resample_to_pixelsize_keeps_the_requested_z_scale():
+    ramp = np.broadcast_to(np.arange(182, dtype=float)[:, None, None] * 20, (182, 2, 2))
+
+    result = resample_to_pixelsize(ramp, working_pxlsz=20, target_pxlsz=(130, 20), order=1)
+
+    assert result.shape[0] == 28
+    np.testing.assert_allclose(result[:, 0, 0], np.arange(28) * 130, atol=1e-6)

@@ -14,6 +14,8 @@ the BCPD warp has a known pre-existing bug (#9) unrelated to what this
 test is checking.
 """
 import numpy as np
+import pytest
+from scipy import ndimage
 
 from napari_clemreg.clemreg.point_cloud_sampling import point_cloud_sampling
 from napari_clemreg.clemreg.point_cloud_registration import point_cloud_registration
@@ -89,3 +91,51 @@ def test_full_pipeline_recovers_known_transform_with_high_dice():
     )
     dice = _dice(warped_fm, em_binary)
     assert dice > 0.85
+
+
+# Balls at known physical positions (µm, z y x), drawn on an isotropic EM
+# grid and on an FM grid three times coarser in z, so the two volumes are
+# related by the identity in physical space.
+PHYSICAL_CENTRES = [(0.4, 0.6, 0.6), (0.4, 1.8, 0.7), (1.0, 0.7, 1.7), (1.05, 1.7, 1.8), (0.7, 1.2, 1.2)]
+PHYSICAL_RADIUS = 0.3
+
+
+def _balls(shape, pixel_size):
+    grid = np.meshgrid(*[np.arange(n) * p for n, p in zip(shape, pixel_size)], indexing='ij')
+    volume = np.zeros(shape, dtype=np.uint8)
+    for centre in PHYSICAL_CENTRES:
+        volume[sum((g - c) ** 2 for g, c in zip(grid, centre)) <= PHYSICAL_RADIUS ** 2] = 1
+    return volume
+
+
+# Through the adapters, because the bug is in how they resample between
+# grids: a z stretch moves the balls high in the stack the most.
+@pytest.mark.xfail(strict=True, reason='#98: resampling onto the working grid stretches FM in z')
+@pytest.mark.parametrize('algorithm, tolerance', [('Rigid CPD', 0.01), ('Affine CPD', 0.01), ('BCPD', 0.025)])
+def test_native_resolution_warp_puts_fm_objects_where_they_are(algorithm, tolerance):
+    import pint
+    from napari.layers import Image, Labels
+    from napari_clemreg.clemreg import widget_components as wc
+
+    em = _balls((36, 60, 60), (0.04, 0.04, 0.04))
+    fm = _balls((12, 60, 60), (0.12, 0.04, 0.04))
+    ureg = pint.UnitRegistry()
+    nm = lambda value: ureg.Quantity(value, 'nanometer')
+
+    moving_points, fixed_points = wc.run_point_cloud_sampling(
+        Labels(fm), Labels(em), nm(40), nm(120), nm(40), nm(40),
+        point_cloud_sampling_frequency=30, voxel_size=1, point_cloud_sigma=1.0)
+    warped, __ = wc.run_point_cloud_registration_and_warping(
+        moving_points, fixed_points, Image(fm.astype(np.float32), name='FM'),
+        Image(em.astype(np.float32), name='EM'), algorithm, registration_direction='FM → EM',
+        warping_output_resolution='Native LM resolution', registration_max_iterations=50,
+        warping_interpolation_order=1, warping_approximate_grid=5, warping_sub_division_factor=1)
+
+    # The warped layer's scale is relative to EM's 40 nm pixels.
+    mask = warped[0].data > 0.5
+    labels, n = ndimage.label(mask)
+    centroids = np.array(ndimage.center_of_mass(mask, labels, range(1, n + 1)))
+    centroids = centroids * np.asarray(warped[0].scale) * 0.04
+    assert n == len(PHYSICAL_CENTRES)
+    errors = [np.linalg.norm(np.asarray(PHYSICAL_CENTRES) - c, axis=1).min() for c in centroids]
+    assert max(errors) < tolerance
