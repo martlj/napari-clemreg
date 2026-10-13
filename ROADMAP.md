@@ -30,6 +30,7 @@ From the original modernisation plan (`docs/napari-clemreg-modernisation-plan.md
 
 - **Run the real Segment-Flow test by hand before each release.** It skips on CI, because the runners have no Nextflow.
 - **A manual release checklist** for what tests can't judge: overlay correctness, the readability of the auto-set highlight, dock sizing, and light and dark themes.
+- **The FM point cloud is stretched about 3% in z** (no issue yet): `_make_isotropic` uses `ndimage.zoom`, which aligns grid corners, so the sample's 28 FM slices become 182 working slices (6.70 per slice, not 6.5). Smaller crops stretch more (15% for 7 slices). Affine CPD and BCPD can absorb it, rigid CPD can't, and the warp may be affected too. Found while writing the [point sampling design](docs/design/point-sampling.md). Pin it with a strict expected-failure test, then fix it (a patch, since it changes results).
 - **CI and packaging checks from the napari guidelines** ([#89](https://github.com/martlj/napari-clemreg/issues/89)): `npe2 validate --imports` in CI, an `[all]` extra, and a test that closes each dock.
 
 ## Open decisions
@@ -42,10 +43,7 @@ Issues waiting on a decision are labelled [`needs-decision`](https://github.com/
 
 ## Newer ideas (from live testing, not in the original plan)
 
-- **Selectable point cloud sampling methods** ([#75](https://github.com/martlj/napari-clemreg/issues/75)). Today points come only from the outside edge of each mask (2D Canny per z-slice). The current method stays the default, with unchanged results. Additions to investigate:
-  - distance-map weighted sampling, with a tunable weight so points can come from near the edge, near object centres, or anywhere, using physical pixel sizes and per-object normalised distance
-  - skeleton sampling, optionally only at branch points or end points, which is useful for filament-like structures in other projects
-  - object centroids, as a baseline
+- **Selectable point cloud sampling methods** ([#75](https://github.com/martlj/napari-clemreg/issues/75)): design in [docs/design/point-sampling.md](docs/design/point-sampling.md). Today points come only from the outside edge of each mask (2D Canny per z-slice) after nearest-neighbour resampling, so on anisotropic data they sit in terraces at the original z slices and miss the top and bottom of each object. The current method stays the default, with unchanged results. The design adds a `continuous` method: shape-based interpolation of each object's signed distance on its native grid, then points drawn at continuous positions from a density over depth, tuned by one `position` setting from surface to centreline (or uniform), with *Surface*, *Centreline* and *Throughout* presets. It covers #75's distance-weighted and skeleton methods; object centroids stay as a baseline. It starts with a prototype and evaluation on synthetic phantoms (phase 0). Decisions P1–P6 in the design doc are proposed, apart from keeping `edge` as the default.
 
   Package the samplers so other projects can import them with only numpy, scipy and scikit-image, i.e. without open3d or the registration stack. Where they live is open decision D9 in the [package split design](docs/design/package-split.md#decisions-log).
 
