@@ -33,7 +33,7 @@ A quick check on a synthetic ellipsoid (semi-axes 0.35 × 0.25 × 0.6 µm, raste
 
 The current cloud also misses the bottom cap. The continuous rows come from a 40-line prototype of steps 1 to 5 below, without the local normalisation or count control, so only their flatness is meaningful, not their point counts.
 
-**A separate bug found on the way:** `ndimage.zoom` aligns the corners of the input and output grids, so 28 FM slices become 182 working slices at 6.70 working slices per FM slice, not 6.5. That stretches the FM cloud by about 3% in z (15% for a 7-slice crop). The registration and the native-resolution warp then disagree about the z scale. That's [#98](https://github.com/martlj/napari-clemreg/issues/98); the `continuous` method avoids it for point clouds by not resampling the masks (P3), but the image warp still needs the fix.
+**A separate bug found on the way:** `ndimage.zoom` aligns the corners of the input and output grids, so 28 FM slices become 182 working slices at 6.70 working slices per FM slice, not 6.5. That stretches the FM cloud by about 3% in z (15% for a 7-slice crop). The registration and the native-resolution warp then disagree about the z scale. That's [#98](https://github.com/martlj/napari-clemreg/issues/98). The image warp needs an exact resampling either way; the `continuous` method doesn't resample the masks at all (P3).
 
 ## Approach: sample a continuous field, not voxels
 

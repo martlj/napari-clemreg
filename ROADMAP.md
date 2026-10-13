@@ -30,7 +30,6 @@ From the original modernisation plan (`docs/napari-clemreg-modernisation-plan.md
 
 - **Run the real Segment-Flow test by hand before each release.** It skips on CI, because the runners have no Nextflow.
 - **A manual release checklist** for what tests can't judge: overlay correctness, the readability of the auto-set highlight, dock sizing, and light and dark themes.
-- **Pin and fix the FM z stretch** ([#98](https://github.com/martlj/napari-clemreg/issues/98)): `ndimage.zoom` aligns corner voxels, so resampling the sample's 28 FM slices onto the working grid stretches z by about 3% (15% for a 7-slice crop). The native-resolution warp assumes the exact ratio, so rigid and affine results are off in z. Pin it with a strict expected-failure test, then resample with an exact-scale `affine_transform`.
 - **CI and packaging checks from the napari guidelines** ([#89](https://github.com/martlj/napari-clemreg/issues/89)): `npe2 validate --imports` in CI, an `[all]` extra, and a test that closes each dock.
 
 ## Open decisions
