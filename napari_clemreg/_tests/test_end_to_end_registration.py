@@ -110,7 +110,6 @@ def _balls(shape, pixel_size):
 
 # Through the adapters, because the bug is in how they resample between
 # grids: a z stretch moves the balls high in the stack the most.
-@pytest.mark.xfail(strict=True, reason='#98: resampling onto the working grid stretches FM in z')
 @pytest.mark.parametrize('algorithm, tolerance', [('Rigid CPD', 0.01), ('Affine CPD', 0.01), ('BCPD', 0.025)])
 def test_native_resolution_warp_puts_fm_objects_where_they_are(algorithm, tolerance):
     import pint

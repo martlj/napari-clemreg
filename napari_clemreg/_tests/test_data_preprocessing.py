@@ -137,7 +137,6 @@ def test_resample_to_pixelsize_is_identity_when_target_matches_working_grid():
 # working grid. A ramp holding each voxel's physical z position shows
 # where every output voxel samples from, so a wrong scale shows up as a
 # value that drifts away from the output voxel's own position.
-@pytest.mark.xfail(strict=True, reason='#98: ndimage.zoom stretches z by (n_out - 1) / (n_in - 1)')
 @pytest.mark.parametrize('n_slices', [7, 28])
 def test_make_isotropic_keeps_the_requested_z_scale(n_slices):
     ramp = np.broadcast_to(np.arange(n_slices, dtype=float)[:, None, None] * 130, (n_slices, 2, 2))
@@ -150,7 +149,6 @@ def test_make_isotropic_keeps_the_requested_z_scale(n_slices):
     np.testing.assert_allclose(result[inside, 0, 0], np.arange(result.shape[0])[inside] * 20, atol=1e-6)
 
 
-@pytest.mark.xfail(strict=True, reason='#98: ndimage.zoom stretches z by (n_out - 1) / (n_in - 1)')
 def test_resample_to_pixelsize_keeps_the_requested_z_scale():
     ramp = np.broadcast_to(np.arange(182, dtype=float)[:, None, None] * 20, (182, 2, 2))
 

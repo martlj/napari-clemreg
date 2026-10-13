@@ -81,6 +81,36 @@ def get_pixelsize(metadata: dict):
     return (_to_float(x_pxlsz), _to_float(y_pxlsz), _to_float(z_pxlsz), unit)
 
 
+def _rescale(im_arr: np.ndarray, factors: tuple, order: int = 0):
+    """ Resample an array by exact per-axis scale factors.
+
+    Output voxel `o` samples input position `o / factor`, so input index
+    0 stays at output index 0 and the scale is exactly `factor`: the
+    convention _rescale_affine_matrix() and napari's layer `scale` use.
+    ndimage.zoom() can't be used for this. It aligns the first and last
+    voxels, so its real scale is (n_out - 1) / (n_in - 1), about 3% off
+    in z for a 28-slice FM stack (#98). Its grid_mode=True aligns voxel
+    edges instead, which gets the ratio right but shifts everything by
+    (factor - 1) / 2 voxels. The output shape matches zoom()'s.
+
+    Parameters
+    ----------
+    im_arr : np.ndarray
+        Input array
+    factors : tuple
+        Output voxels per input voxel, one per axis
+    order : int
+        Order of resampling
+    Returns
+    -------
+        Resampled image array
+    """
+    factors = np.asarray(factors, dtype=float)
+    output_shape = tuple(int(round(n * f)) for n, f in zip(im_arr.shape, factors))
+    return ndimage.affine_transform(im_arr, 1 / factors, output_shape=output_shape,
+                                    order=order, mode='nearest')
+
+
 def _zoom_values(xy, z, xy_ref, z_ref):
     """
     ?
@@ -128,7 +158,7 @@ def _make_isotropic_v1(image: Image,
     print(f'Interpolating {image.name} with zoom_value={z_zoom}...')
     start_time = time.time()
 
-    image.data = ndimage.zoom(image.data, (z_zoom, 1, 1))
+    image.data = _rescale(image.data, (z_zoom, 1, 1), order=3)
 
     print(f'Finished interpolating after {time.time() - start_time}s!')
 
@@ -167,7 +197,7 @@ def _make_isotropic(im_arr: np.ndarray, pxlsz_lm: tuple, pxlsz_em: tuple, invers
 
     if inverse:
         zoom_vals = tuple(1 / x for x in zoom_vals)
-    return ndimage.zoom(im_arr, zoom_vals, order=order)
+    return _rescale(im_arr, zoom_vals, order=order)
 
 def resample_to_pixelsize(im_arr: np.ndarray, working_pxlsz: float, target_pxlsz: tuple, order: int = 0):
     """ Resample a dense array from a uniform working voxel size onto an
@@ -192,7 +222,7 @@ def resample_to_pixelsize(im_arr: np.ndarray, working_pxlsz: float, target_pxlsz
     zoom_vals = (working_pxlsz / target_pxlsz[0],
                 working_pxlsz / target_pxlsz[1],
                 working_pxlsz / target_pxlsz[1])
-    return ndimage.zoom(im_arr, zoom_vals, order=order)
+    return _rescale(im_arr, zoom_vals, order=order)
 
 def return_isotropic_image_list(input_image: Image,
                                 pxlsz_lm: tuple,
