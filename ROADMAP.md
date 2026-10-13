@@ -46,10 +46,13 @@ Issues waiting on a decision are labelled [`needs-decision`](https://github.com/
 
   Package the samplers so other projects can import them with only numpy, scipy and scikit-image, i.e. without open3d or the registration stack. Where they live is open decision D9 in the [package split design](docs/design/package-split.md#decisions-log).
 
-- **Automatic initial orientation for point cloud registration** ([#73](https://github.com/martlj/napari-clemreg/issues/73)). Registration works much better when the clouds start within about 90° of the right orientation, and today users pick the nearest orthogonal orientation by hand. To investigate:
-  - running the registration from several starting orientations (e.g. the 24 axis-aligned rotations, on downsampled clouds) and keeping the best by a metric such as inlier fraction or Chamfer distance
-  - handling a z flip between EM and FM, as a user setting, as extra candidates in the multi-start, or by a heuristic checked against typical data
-  - open3d's feature-based global registration as a cheaper initialiser
+- **Automatic initial orientation for point cloud registration** ([#73](https://github.com/martlj/napari-clemreg/issues/73)). Registration works much better when the clouds start within about 90° of the right orientation, and today users pick the nearest orthogonal orientation by hand. The same coarse step would also let an EM volume much smaller than the FM field (e.g. 10 µm in 200 µm) be found automatically. The [feasibility notebook](notebooks/global_registration_feasibility.ipynb) compared methods on synthetic data. Template matching over in-plane rotations and a mirror worked when EM and FM share roughly the same z axis, even for 10 µm EM fields. RANSAC on FPFH features needed a rough position and an EM field of about 50 µm to cope with any orientation. Multi-start CPD failed when the FM field is much larger than the EM. Still to do:
+  - template matching for each of the 6 choices of which EM axis maps to FM z, to handle 3D orientations for small EM fields
+  - repeat on real FM/EM pairs, starting with sub-volumes of the sample data
+  - multi-start CPD on fields of view that mostly overlap, which the notebook didn't test
+  - a rough position as an optional napari Points input, since both methods that worked do better with one
+  - handling a z flip between EM and FM, as a user setting or as extra candidates (the notebook tries both and keeps the better fit)
+  - check whether clemreg's own refinement is affected by two problems the notebook found. From the true pose, rigid CPD drifted by up to 2.8 µm and 10° on clouds sampled per z slice, while ICP stayed put. And open3d's normals lean towards each cloud's own +z, which makes FPFH features depend on the frame. The continuous sampling design (#75) may help with the first.
 
   It fits the core's `register_point_clouds`, and is easier after package split phase 1 (#58).
 
