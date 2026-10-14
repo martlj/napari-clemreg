@@ -10,6 +10,7 @@ from napari.layers import Image, Shapes, Labels, Points
 from napari.utils.notifications import show_error
 
 from pathlib import Path
+from ..clemreg.on_init_specs import EM_BACKEND_LABELS
 from ..clemreg.point_cloud_registration import point_cloud_registration
 from ..clemreg.point_cloud_sampling import point_cloud_sampling
 from ..clemreg.warp_image_volume import warp_image_volume
@@ -19,12 +20,9 @@ from napari.qt.threading import thread_worker
 """
 Moving segmentation
 """
-# The EM Segmentation Backend dropdown's labels (on_init_specs.py), mapped
-# to the core's backend names.
-EM_BACKENDS = {
-    'MitoNet (Segment-Flow)': 'segment-flow',
-    'MitoNet (empanada-dl)': 'empanada',
-}
+# The EM Segmentation Backend dropdown's labels, mapped to the core's backend
+# names.
+EM_BACKENDS = {label: name for name, label in EM_BACKEND_LABELS.items()}
 
 
 def run_moving_segmentation(Moving_Image,

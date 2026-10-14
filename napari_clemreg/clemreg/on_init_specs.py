@@ -1,5 +1,28 @@
 #!/usr/bin/env python3
 # coding: utf-8
+import logging
+import os
+
+logger = logging.getLogger(__name__)
+
+# The EM Segmentation Backend dropdown's label for each of the core's backend
+# names (em_segmentation.BACKENDS).
+EM_BACKEND_LABELS = {
+    'segment-flow': 'MitoNet (Segment-Flow)',
+    'empanada': 'MitoNet (empanada-dl)',
+}
+
+
+def default_em_backend_label() -> str:
+    """The EM Segmentation Backend dropdown's default: CLEMREG_EM_BACKEND if
+    it names a backend (e.g. an image that carries only empanada), else
+    Segment-Flow."""
+    name = os.environ.get('CLEMREG_EM_BACKEND', '').strip()
+    if name and name not in EM_BACKEND_LABELS:
+        logger.warning('Ignoring CLEMREG_EM_BACKEND=%r; expected one of %s',
+                       name, ', '.join(EM_BACKEND_LABELS))
+    return EM_BACKEND_LABELS.get(name, EM_BACKEND_LABELS['segment-flow'])
+
 
 specs = {
     'z_min':{'widget_type': 'SpinBox',
@@ -37,11 +60,13 @@ specs = {
     # `empanada` extra currently cannot install at all on Python 3.11
     # (see issue #5), while Segment-Flow has been verified end-to-end
     # against real production data (see #5/#16). This is purely about
-    # which one can actually work out of the box today.
+    # which one can actually work out of the box today. An install that
+    # carries only one backend (e.g. a container image) sets
+    # CLEMREG_EM_BACKEND instead (#106).
     'em_segmentation_backend':{'label': 'EM Segmentation Backend',
                              'widget_type': 'ComboBox',
-                             'choices': ['MitoNet (Segment-Flow)', 'MitoNet (empanada-dl)'],
-                             'value': 'MitoNet (Segment-Flow)',
+                             'choices': list(EM_BACKEND_LABELS.values()),
+                             'value': default_em_backend_label(),
                              'tooltip': 'Both options run the same MitoNet model. '
                                         'MitoNet (Segment-Flow) shells out to a Nextflow '
                                         'pipeline and requires Nextflow and Conda on PATH. '
