@@ -17,6 +17,7 @@ them were guessed.
 """
 from __future__ import annotations
 
+import hashlib
 import shutil
 import subprocess
 import tempfile
@@ -244,6 +245,42 @@ def _build_model_config(model_type: str, task: str, conf_threshold: float, dest_
     return config_path
 
 
+def _input_key(
+    volume: np.ndarray, model_type: str, task: str, conf_threshold: float, source: list[str]
+) -> str:
+    """Hash of the volume and everything that changes its mask, used to name
+    the input file Segment-Flow sees.
+
+    Segment-Flow derives its image_id, and so its published mask filename,
+    from the input filename alone. A fixed name made every run share one
+    image_id, so masks from different volumes overwrote each other, and the
+    mask glob could pick up one left by an earlier run with different
+    settings. Naming the input by this key gives each volume-and-settings
+    combination its own mask file, which can then be reused.
+
+    The profile is left out (it changes where the model runs, not what it
+    returns). A local AIOD_NXF_REPO checkout is keyed by its path only, so
+    changing the checkout in place won't invalidate masks made with it.
+    """
+    h = hashlib.blake2b(digest_size=8)
+    h.update(repr((volume.shape, volume.dtype.str, model_type, task, conf_threshold, source)).encode())
+    h.update(np.ascontiguousarray(volume).data)
+    return h.hexdigest()
+
+
+def _find_mask(mask_dir: Path, image_id: str) -> Path | None:
+    """The newest published mask for this image_id, if any.
+
+    combineStacks publishes the result as
+    <root_dir>/aiod_cache/<model>/<model_type>_masks/<image_id>_masks_<hash>_all.<format>
+    -- confirmed against a real run. The <hash> is a resolved-param hash we
+    don't compute ourselves, so glob for it rather than predict the exact
+    filename. Newest wins in case a Segment-Flow upgrade changes that hash.
+    """
+    matches = list(mask_dir.glob(f"{image_id}_masks_*_all.tiff"))
+    return max(matches, key=lambda p: p.stat().st_mtime) if matches else None
+
+
 def segment_flow_em_segmentation(
     volume: np.ndarray,
     model_type: str = "MitoNet v1",
@@ -253,6 +290,10 @@ def segment_flow_em_segmentation(
     conf_threshold: float = 0.3,
 ) -> np.ndarray:
     """Run EM segmentation via Crick's AI-on-Demand Segment-Flow pipeline.
+
+    If an earlier call published a mask for the same volume with the same
+    model, task, threshold and Segment-Flow source under ``root_dir``, that
+    mask is returned without running the pipeline again.
 
     Parameters
     ----------
@@ -308,11 +349,22 @@ def segment_flow_em_segmentation(
     # confirmed directly. Dimension auto-detection from file metadata isn't
     # implemented upstream (raises NotImplementedError), so dims must be
     # passed explicitly.
-    from aiod_utils.io import image_paths_to_csv
+    from aiod_utils.io import get_image_id, image_paths_to_csv
+
+    img_name = f"clemreg_{_input_key(volume, model_type, task, conf_threshold, source)}.tif"
+    image_id = get_image_id(img_name).value
+    mask_dir = root_dir / "aiod_cache" / "empanada" / f"{model_type}_masks"
+    if (cached := _find_mask(mask_dir, image_id)) is not None:
+        print(
+            f"Reusing the Segment-Flow mask from an earlier run on this volume "
+            f"with the same settings: {cached} (delete it to run again).",
+            flush=True,
+        )
+        return tifffile.imread(cached)
 
     with tempfile.TemporaryDirectory(prefix="napari_clemreg_segment_flow_") as tmpdir_str:
         tmpdir = Path(tmpdir_str)
-        img_path = tmpdir / "input.tif"
+        img_path = tmpdir / img_name
         tifffile.imwrite(img_path, volume)
 
         csv_path = tmpdir / "images.csv"
@@ -396,18 +448,10 @@ def segment_flow_em_segmentation(
             )
         print("Segment-Flow EM segmentation finished.", flush=True)
 
-        # combineStacks publishes the result as
-        # <root_dir>/aiod_cache/<model>/<model_type>_masks/<image-id>_masks_<hash>_all.<format>
-        # -- confirmed against a real run. The <hash> is a resolved-param
-        # hash we don't compute ourselves, so glob for it rather than
-        # predict the exact filename (robust to that hash's computation
-        # changing upstream, and there's exactly one match for a
-        # single-image run).
-        mask_dir = root_dir / "aiod_cache" / "empanada" / f"{model_type}_masks"
-        matches = sorted(mask_dir.glob("*_all.tiff"))
-        if not matches:
+        mask_path = _find_mask(mask_dir, image_id)
+        if mask_path is None:
             raise SegmentFlowRunError(
                 f"Segment-Flow reported success but no output mask was found in "
-                f"{mask_dir} (looked for *_all.tiff). Nextflow output:\n{output}"
+                f"{mask_dir} (looked for {image_id}_masks_*_all.tiff). Nextflow output:\n{output}"
             )
-        return tifffile.imread(matches[-1])
+        return tifffile.imread(mask_path)
