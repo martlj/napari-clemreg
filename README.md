@@ -199,6 +199,8 @@ Both the `1) Electron Microscopy (EM) Segmentation` widget and the `Run registra
 
 The first run on a given machine downloads and builds an isolated Conda environment for the model (cached under `~/.nextflow/aiod` and reused on later runs), so it can take several minutes. Progress is printed to the terminal, not the napari window. The model always runs inside Segment-Flow's own environment, never in napari-clemreg's Python process.
 
+To make another backend the dropdown's default, for example in a container image that carries only empanada, set `CLEMREG_EM_BACKEND` to `empanada` (or `segment-flow`) before starting napari.
+
 **Want to try the pipeline without a GPU or setting up AIoD?** `File → Open Sample → napari-clemreg → EM Mask (precomputed, no GPU needed)` loads a precomputed EM segmentation that matches the EM volume in the main sample data. You can then start from **Point Cloud Sampling** (in either widget) without running EM segmentation at all.
 
 ### Registering Multiple LM Channels
