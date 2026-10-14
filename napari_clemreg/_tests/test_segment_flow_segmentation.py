@@ -21,6 +21,8 @@ from napari_clemreg.clemreg.segment_flow_segmentation import (
     _build_subprocess_env,
     _check_prerequisites,
     _default_profile,
+    _find_mask,
+    _input_key,
     _segment_flow_source,
     segment_flow_em_segmentation,
 )
@@ -31,6 +33,12 @@ try:
     _HAS_AIOD_REGISTRY = True
 except ImportError:
     _HAS_AIOD_REGISTRY = False
+try:
+    import aiod_utils  # noqa: F401
+    import yaml  # noqa: F401
+    _HAS_AIOD_PACKAGES = _HAS_AIOD_REGISTRY
+except ImportError:
+    _HAS_AIOD_PACKAGES = False
 
 
 def test_segment_flow_revision_is_pinned_not_default_branch():
@@ -137,6 +145,64 @@ def test_build_subprocess_env_leaves_path_alone_without_a_venv():
         env = _build_subprocess_env()
 
     assert env["PATH"] == "/usr/bin:/bin"
+
+
+def test_input_key_depends_on_volume_and_settings():
+    source = [SEGMENT_FLOW_REPO, "-r", SEGMENT_FLOW_REVISION]
+    volume = np.arange(24, dtype=np.uint8).reshape(2, 3, 4)
+    key = _input_key(volume, "MitoNet v1", "mito", 0.3, source)
+
+    # Same content, different memory layout: same key.
+    assert _input_key(np.asfortranarray(volume), "MitoNet v1", "mito", 0.3, source) == key
+    changed = volume.copy()
+    changed[0, 0, 0] += 1
+    assert _input_key(changed, "MitoNet v1", "mito", 0.3, source) != key
+    assert _input_key(volume.astype(np.uint16), "MitoNet v1", "mito", 0.3, source) != key
+    assert _input_key(volume.reshape(3, 2, 4), "MitoNet v1", "mito", 0.3, source) != key
+    assert _input_key(volume, "MitoNet v1", "mito", 0.5, source) != key
+    assert _input_key(volume, "MitoNet v1", "mito", 0.3, ["/local/checkout"]) != key
+
+
+def test_find_mask_matches_only_this_image_and_prefers_newest(tmp_path):
+    import os
+
+    assert _find_mask(tmp_path / "missing", "clemreg_abc_tif") is None
+    old = tmp_path / "clemreg_abc_tif_masks_111_all.tiff"
+    new = tmp_path / "clemreg_abc_tif_masks_222_all.tiff"
+    other = tmp_path / "clemreg_xyz_tif_masks_333_all.tiff"
+    for i, path in enumerate((new, old, other)):
+        path.touch()
+        os.utime(path, (1000 + i, 1000 + i))
+    os.utime(new, (2000, 2000))
+
+    assert _find_mask(tmp_path, "clemreg_abc_tif") == new
+
+
+@pytest.mark.skipif(not _HAS_AIOD_PACKAGES, reason="needs aiod_utils, aiod_registry and pyyaml")
+def test_segment_flow_em_segmentation_reuses_published_mask(tmp_path, monkeypatch):
+    """A mask already published for this volume and these settings is
+    returned without starting Nextflow."""
+    import tifffile
+    from aiod_utils.io import get_image_id
+    from napari_clemreg.clemreg import segment_flow_segmentation as sf
+
+    monkeypatch.delenv("AIOD_NXF_REPO", raising=False)
+    volume = np.arange(24, dtype=np.uint8).reshape(2, 3, 4)
+    key = _input_key(volume, "MitoNet v1", "mito", 0.3, _segment_flow_source())
+    image_id = get_image_id(f"clemreg_{key}.tif").value
+    mask_dir = tmp_path / "aiod_cache" / "empanada" / "MitoNet v1_masks"
+    mask_dir.mkdir(parents=True)
+    expected = np.ones(volume.shape, dtype=np.uint16)
+    tifffile.imwrite(mask_dir / f"{image_id}_masks_deadbeef_all.tiff", expected)
+
+    def refuse(*args, **kwargs):
+        raise AssertionError("Nextflow should not run when a mask can be reused")
+
+    monkeypatch.setattr(sf, "_run_nextflow", refuse)
+    with patch("shutil.which", return_value="/usr/bin/fake"):
+        mask = segment_flow_em_segmentation(volume, root_dir=tmp_path)
+
+    np.testing.assert_array_equal(mask, expected)
 
 
 @pytest.mark.slow
