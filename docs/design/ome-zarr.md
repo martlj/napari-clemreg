@@ -31,6 +31,7 @@ The in-memory napari workflow stays as it is for quick, interactive runs. A proj
 - whether MoBIE, napari-ome-zarr and bioio-ome-zarr open OME-Zarr **0.6** images (0.6 changes the `multiscales` metadata, so a reader that only knows 0.5 may refuse them);
 - how MoBIE handles label groups nested inside an image, and multichannel `ome.zarr` sources;
 - whether Segment-Flow runs end to end on an `.ome.zarr` input. Its `aiod_utils` already reads OME-Zarr through bioio-ome-zarr;
+- whether MoBIE, napari-ome-zarr, bioio-ome-zarr and Neuroglancer place a cropped multiscale image by its `translation`, so it overlays the uncropped source, and whether bioio-ome-zarr returns the translation or `clemreg.io` has to read it from the metadata;
 - which MoBIE release on the Fiji update site first includes the `thinPlateSpline` and `displacementField` transforms (the GitHub releases page hasn't been updated since 2022, so check the update site);
 - whether MoBIE's thin-plate spline matches CLEM-Reg's resampled BCPD output, and whether it renders quickly enough with as many landmarks as BCPD produces.
 
@@ -55,6 +56,20 @@ What it costs, and the rules that follow from that (D2):
   - **0.4** inputs are linked too, since everything reads 0.4. There's an `--upgrade` option to rewrite them as sharded 0.6.
   - Other formats are converted losslessly, with the same dtype and no intensity rescaling. The original file's name, size and SHA-256 go in the RO-Crate.
 - **Interactive use.** The plugin doesn't convert anything when a file is opened. Layers stay in memory as they do today, and conversion happens only when **Save project** is used (D2).
+
+## Working on part of a large input
+
+A CLEM experiment often uses only part of a large EM volume, or one region of a remote dataset. There are three ways to get at a part, in order of preference (D13):
+
+1. **Read it lazily, with no copy.** A linked OME-Zarr input (D2) opens as a lazy, chunked array, so slicing it fetches only the chunks it needs, locally or from S3. The crop is a slice plus its origin, and the origin is what keeps coordinates in the frame of the whole image, as the Mask ROI already does. For viewing, MoBIE's `crop` source transform shows a region of a linked source without copying it.
+2. **Copy it as OME-Zarr, in the source's frame.** Needed when the region is used many times over a slow link, staged to HPC by Nextflow, deposited on its own, or written back to. The copy:
+   - crops every pyramid level with the same physical box: level *L*'s box is the full-resolution box divided by that level's downsampling factor, and the origin is a multiple of the coarsest factor so the levels stay aligned. A small crop that needs fewer levels gets a new pyramid from ngff-zarr instead;
+   - keeps each level's `scale` and adds a `translation` set to the origin in µm, so the scene's transforms, the BigWarp landmarks and MoBIE views need no change;
+   - copies stored chunks without decoding them when the box lies on chunk boundaries. With sharding the shard is the unit stored, so a box aligned only to chunks means decoding and re-encoding the shards at its edges;
+   - crops `labels` groups with the same box, and keeps the `omero` channel names, colours and display ranges.
+3. **Export it as OME-TIFF, at one resolution.** Only for tools that can't read OME-Zarr, such as older notebooks, and only for crops that fit in memory. OME-TIFF keeps the pixel sizes and channel names but has no standard place for the origin, so this is an export, not a working format.
+
+Whichever way it's made, the project's RO-Crate records the source (path or URL and checksum), the resolution level, and the box in voxels and in µm.
 
 ## The project layout
 
@@ -209,7 +224,7 @@ The aim is that a user can open a CLEM-Reg result in [BigWarp](https://imagej.gi
 
 Each phase is one PR (or a few), leaves the tests passing, and keeps the pipeline output baseline (`test_pipeline_baseline.py`) unchanged.
 
-0. **Compatibility check**, nothing merged except possibly a script. Write a small sharded scene with ngff-zarr, in 0.6 (affine plus displacements) and in 0.5. Open it in MoBIE/Fiji, napari-ome-zarr, bioio-ome-zarr and Neuroglancer. Test MoBIE with nested label groups, multichannel sources and linked external stores. Run Segment-Flow on an `.ome.zarr` input. Time sharded writes of a large dask array. Find the first Fiji update-site release of MoBIE with `thinPlateSpline` and `displacementField`. Open a BCPD result in MoBIE through `thinPlateSpline` and through `displacementField`, compare both with CLEM-Reg's resampled output and time the rendering. Carry out the BigWarp checks in *Refining a registration by hand in BigWarp*. The results settle D1, D5, D6, D8, D10, D11 and D12.
+0. **Compatibility check**, nothing merged except possibly a script. Write a small sharded scene with ngff-zarr, in 0.6 (affine plus displacements) and in 0.5. Open it in MoBIE/Fiji, napari-ome-zarr, bioio-ome-zarr and Neuroglancer. Test MoBIE with nested label groups, multichannel sources and linked external stores. Run Segment-Flow on an `.ome.zarr` input. Time sharded writes of a large dask array. Find the first Fiji update-site release of MoBIE with `thinPlateSpline` and `displacementField`. Open a BCPD result in MoBIE through `thinPlateSpline` and through `displacementField`, compare both with CLEM-Reg's resampled output and time the rendering. Carry out the BigWarp checks in *Refining a registration by hand in BigWarp*. Open a cropped multiscale image with a `translation`, in 0.5 and 0.6, in each viewer and in bioio-ome-zarr, and check it overlays the uncropped source. The results settle D1, D5, D6, D8, D10, D11, D12 and D13.
 1. **Reading** (needs package split phase 1, #58): `clemreg.io.open_image` returning a `PixelSize` in µm, replacing `get_pixelsize`. The adapters read layer `scale` and `units`. Tests run on generated fixtures: TIFF, OME-TIFF, and OME-Zarr 0.4, 0.5 and 0.6. This also lets the plugin run on images opened by napari-ome-zarr.
 2. **Physical transforms**: the physical-units conversion, the RFC-5, MoBIE and napari serialisers, the consistency test, and the origin test. In the plugin, show the Rigid and Affine CPD results through the layer `affine`.
 3. **Import and project writer**: `clemreg.project` and `clemreg import`. Convert, or link, inputs into a sharded multiscale scene, with per-image crates and the required metadata.
@@ -257,3 +272,4 @@ Each decision is **Proposed** until confirmed in its phase's issue.
 | D10 | BCPD in MoBIE | resampled `fm_registered` only; `thinPlateSpline` from BigWarp landmarks; MoBIE `displacementField` | `thinPlateSpline`, if phase 0 shows it matches CLEM-Reg's output and renders fast enough, with `displacementField` as the fallback. Keep writing `fm_registered` as an option for older MoBIE releases. | Proposed |
 | D11 | MoBIE output form | a MoBIE project; a collection table; both | A MoBIE project (a versioned spec, with views), plus a collection table with a transformation table if it costs little, since it opens directly in Fiji and suits Nextflow batch output. | Proposed |
 | D12 | Landmarks exported for editing in BigWarp | all of BCPD's control points; a well-spread subset; let the user choose | A subset chosen by farthest-point sampling, with a default size set by phase 0's timing and agreement checks. Report the difference from the full spline in QC, and keep the full set in `transform.json`. | Proposed |
+| D13 | Working on part of a large input | read lazily with no copy; copy as OME-Zarr; export as TIFF | Read lazily by default. When a copy is needed, write OME-Zarr with a `translation` so it stays in the source's frame, cropping the existing pyramid levels or regenerating them for small crops. OME-TIFF only as an export for tools that can't read OME-Zarr. Record the source and box in the RO-Crate. Confirmed once phase 0 shows the viewers and bioio honour the translation. | Proposed |
